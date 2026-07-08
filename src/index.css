@@ -51,23 +51,21 @@ body {
   cursor: pointer;
 }
 
-/* === ИСПРАВЛЕННЫЕ НАРАБОТКИ СЛАЙДЕРОВ ADSR (Пункт 3) === */
 .vertical-slider-container {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 5px;
-  width: 40px; /* Компактный ровный отступ */
+  width: 40px; 
   height: 100%;
 }
 
-/* Использование нативного вертикального режима (без раздувания маргинов!) */
 .vertical-slider {
   -webkit-appearance: none;
-  writing-mode: vertical-lr; /* Нативная вертикальная разметка */
-  direction: rtl;            /* Ползунок растет снизу вверх */
+  writing-mode: vertical-lr; 
+  direction: rtl;            
   width: 8px;
-  height: 100px;             /* Фиксированная высота слайдера */
+  height: 65px;             
   background: #222;
   border: 1px solid #fff;
   outline: none;
@@ -79,20 +77,10 @@ body {
   -webkit-appearance: none;
   appearance: none;
   width: 16px;
-  height: 8px; /* Четкий прямоугольный бегунок */
+  height: 8px; 
   background: #fff;
   border: 1px solid #000;
   cursor: pointer;
-}
-
-.daw-bottom-rack {
-  display: flex;
-  gap: 15px;
-  height: 280px; 
-  min-height: 280px;
-  max-height: 280px;
-  width: 100%;
-  overflow: hidden;
 }
 
 .fade-text {
@@ -104,4 +92,118 @@ body {
 }
 .hex-polygon.active {
   transition: none; 
+}
+
+.daw-app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: #000;
+  padding: 10px;
+  overflow: hidden;
+}
+
+.daw-workspace-upper {
+  display: flex;
+  flex: 1.6;
+  gap: 15px;
+  overflow: hidden;
+  margin-bottom: 10px;
+  min-height: 0;
+  min-width: 0;
+}
+
+.daw-circle-box {
+  flex: 1.1;
+  border: 2px solid #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: #000;
+  position: relative;
+  padding: 10px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.daw-hex-box {
+  flex: 1.4;
+  border: 2px solid #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: #000;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+}
+
+.daw-bottom-rack {
+  display: flex;
+  gap: 15px;
+  height: 240px; 
+  min-height: 210px;
+  max-height: 270px;
+  width: 100%;
+  overflow: hidden;
+  flex: 0.9;
+  flex-shrink: 0;
+}
+
+.daw-synth-box {
+  width: 280px; 
+  flex-shrink: 0; 
+  height: 100%;
+}
+
+
+@media (max-width: 1439px) {
+  body {
+    overflow-y: auto !important;
+  }
+
+  .daw-app-container {
+    height: auto;
+    min-height: 100vh;
+    overflow-y: visible;
+    padding: 15px;
+    gap: 15px;
+  }
+
+  .daw-workspace-upper {
+    flex-direction: column;
+    flex: none;
+    height: auto;
+    overflow: visible;
+    gap: 15px;
+    margin-bottom: 5px;
+  }
+
+  .daw-circle-box, .daw-hex-box {
+    flex: none;
+    width: 100%;
+    height: auto;
+    min-height: 380px;
+    max-height: 480px;
+    overflow: visible;
+    padding: 20px;
+  }
+
+  .daw-bottom-rack {
+    flex-direction: column;
+    flex: none;
+    height: auto;
+    min-height: auto;
+    max-height: none;
+    overflow: visible;
+    gap: 15px;
+  }
+
+  .daw-synth-box {
+    width: 100%;
+    height: auto;
+    min-height: 250px;
+  }
 }

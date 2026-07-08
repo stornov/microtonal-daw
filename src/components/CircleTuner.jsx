@@ -22,10 +22,7 @@ const CircleTuner = () => {
     return b.instrumentId || 'triangle';
   }
 
-  // --- ЗАЩИТА: Гарантируем, что массив нот никогда не будет undefined (Пункт 1) ---
-  const currentNotes = useMemo(() => {
-    return activeBlock?.notes || [];
-  }, [activeBlock]);
+  const currentNotes = activeBlock ? activeBlock.notes : [];
 
   const getNoteCoordinates = (index, totalPoints) => {
     const angle = ((index % totalPoints) + totalPoints) % totalPoints * (2 * Math.PI) / totalPoints - Math.PI / 2;
@@ -47,9 +44,7 @@ const CircleTuner = () => {
       const endBeat = block.startBeat + block.durationBeats;
       if (currentPlayheadBeat >= block.startBeat && currentPlayheadBeat < endBeat) {
         const inst = instruments.find(i => i.id === blockActiveInstrumentId(block));
-        // Защита внутри плейбека
-        const safeNotes = block.notes || [];
-        active[block.id] = { notes: safeNotes, color: inst ? inst.color : '#fff' };
+        active[block.id] = { notes: block.notes, color: inst ? inst.color : '#fff' };
       }
     });
     return active;
@@ -124,7 +119,8 @@ const CircleTuner = () => {
             cx={center}
             cy={center}
             r={radius}
-            stroke={isBase ? "#ffce32" : "rgba(255,255,255,0.15)"}
+            // --- ТЕПЕРЬ ОСНОВНАЯ ОРБИТА СТАЛА БЕЛОЙ (#ffffff) ---
+            stroke={isBase ? "#ffffff" : "rgba(255,255,255,0.15)"}
             strokeWidth={isBase ? 1.6 : 0.8}
             fill="none"
             strokeDasharray={isBase ? "none" : "2 4"} 
@@ -168,7 +164,7 @@ const CircleTuner = () => {
       {/* ОТРИСОВКА ИНТЕРАКТИВНЫХ ТОЧЕК НА ВСЕХ ОРБИТАХ */}
       {allInteractiveNodes.map((node) => {
         const liveColors = Object.values(liveActiveNotes)
-          .filter(item => item && item.notes && item.notes.includes(node.index))
+          .filter(item => item && item.notes.includes(node.index))
           .map(item => item.color);
 
         const isLiveActive = liveColors.length > 0;

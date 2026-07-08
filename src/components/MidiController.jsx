@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { engine } from '../audio/AudioEngine';
+import { getScaleNotesForEdo } from '../utils/mathUtils';
 
 const MidiController = () => {
-  const { edo, addActiveNote, removeActiveNote } = useAppStore();
+  const { edo, currentScale, activeBlockId, addNoteToActiveBlock, removeNoteFromActiveBlock } = useAppStore();
   const [midiStatus, setMidiStatus] = useState('NOT INITIALIZED');
 
   useEffect(() => {
@@ -13,15 +14,12 @@ const MidiController = () => {
       midiAccess = access;
       updateStatus(access);
 
-      // Назначаем обработчик на все доступные MIDI-входы
       for (let input of access.inputs.values()) {
         input.onmidimessage = handleMidiMessage;
       }
 
-      // Следим за подключением/отключением устройств в реальном времени
       access.onstatechange = () => {
         updateStatus(access);
-        // Переназначаем обработчики для новых устройств
         for (let input of access.inputs.values()) {
           input.onmidimessage = handleMidiMessage;
         }
@@ -29,13 +27,12 @@ const MidiController = () => {
     };
 
     const onMIDIFailure = () => {
-      setMidiStatus('MIDI FAILURE / BLOCKED');
+      setMidiStatus('MIDI FAILURE');
     };
 
     const updateStatus = (access) => {
       const inputs = Array.from(access.inputs.values());
       if (inputs.length > 0) {
-        // Выводим имя первого подключенного устройства
         setMidiStatus(`READY: ${inputs[0].name.toUpperCase()}`);
       } else {
         setMidiStatus('NO DEVICES DETECTED');
@@ -45,27 +42,41 @@ const MidiController = () => {
     const handleMidiMessage = async (message) => {
       const [status, midiNote, velocity] = message.data;
 
-      // Мапим MIDI ноту (60 — это Middle C / До первой октавы) в шаг нашего EDO
-      const noteIndex = ((midiNote - 60) % edo + edo) % edo;
+      // Мапим ноту линейно относительно Middle C (До первой октавы = шаг 0)
+      const noteIndex = midiNote - 60; 
 
-      // Note On (клавиша нажата, velocity > 0)
+      // Вычисляем октавный сдвиг для проверки лада
+      const wrappedIndex = ((noteIndex % edo) + edo) % edo;
+      const allowedNotes = getScaleNotesForEdo(currentScale, edo);
+
+      // Проверяем лад перед запуском звука
+      if (!allowedNotes.includes(wrappedIndex)) return;
+
+      // Note On
       if (status >= 144 && status <= 159 && velocity > 0) {
         await engine.init();
         engine.playNote(noteIndex);
-        addActiveNote(noteIndex);
+        
+        // Автоматически записываем ноту в активный кадр (Пункт 2)
+        if (activeBlockId) {
+          addNoteToActiveBlock(noteIndex);
+        }
       } 
-      // Note Off (клавиша отпущена или Note On с нулевой силой нажатия)
+      // Note Off
       else if ((status >= 128 && status <= 143) || (status >= 144 && status <= 159 && velocity === 0)) {
         engine.stopNote(noteIndex);
-        removeActiveNote(noteIndex);
+        
+        // Стираем ноту из активного кадра при отпускании (Пункт 2)
+        if (activeBlockId) {
+          removeNoteFromActiveBlock(noteIndex);
+        }
       }
     };
 
-    // Проверяем поддержку Web MIDI API в браузере
     if (navigator.requestMIDIAccess) {
       navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
     } else {
-      setMidiStatus('MIDI NOT SUPPORTED BY BROWSER');
+      setMidiStatus('MIDI NOT SUPPORTED');
     }
 
     return () => {
@@ -75,7 +86,7 @@ const MidiController = () => {
         }
       }
     };
-  }, [edo]); // Перезапускаем при смене EDO, чтобы правильно вычислять остаток от деления
+  }, [edo, currentScale, activeBlockId, addNoteToActiveBlock, removeNoteFromActiveBlock]);
 
   return (
     <div style={{ fontSize: '12px', color: '#666', border: '1px solid #222', padding: '6px 12px', display: 'inline-block' }}>

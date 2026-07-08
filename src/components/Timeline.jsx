@@ -71,21 +71,17 @@ const Timeline = () => {
     return () => cancelAnimationFrame(animId);
   }, [setCurrentPlayheadBeat]);
 
-  // --- ЭФФЕКТ АВТОМАТИЧЕСКОГО СКРОЛЛА (FOLLOW PLAYHEAD) (Пункт 1) ---
   useEffect(() => {
     if (isPlaying && timelineScrollRef.current && currentPlayheadBeat >= 0) {
       const container = timelineScrollRef.current;
       const playheadX = 120 + currentPlayheadBeat * zoomX; // Физическая позиция плейхеда в пикселях
       
-      // Граница прокрутки (правый край минус 80px)
       const rightBoundary = container.scrollLeft + container.clientWidth - 80;
       
       if (playheadX > rightBoundary) {
-        // Прокручиваем контейнер вперед, оставляя 150px пространства до левого края
         container.scrollLeft = playheadX - 150;
       }
       
-      // Сброс прокрутки на 0 при возврате в начало трека
       if (currentPlayheadBeat < 0.1) {
         container.scrollLeft = 0;
       }
@@ -279,11 +275,10 @@ const Timeline = () => {
       </div>
 
       <div 
-        ref={timelineScrollRef} // Ссылка для скроллинга
+        ref={timelineScrollRef}
         style={{ position: 'relative', overflowX: 'auto', flex: 1, border: '1px solid #222', backgroundColor: '#050505' }}
       >
         
-        {/* Ruler */}
         <div 
           onMouseDown={handleRulerMouseDown} 
           style={{ display: 'flex', height: '20px', backgroundColor: '#111', borderBottom: '1px solid #333', position: 'sticky', top: 0, zIndex: 10, cursor: 'col-resize' }}

@@ -11,21 +11,17 @@ const Visualizer = () => {
     let animationFrameId;
 
     const draw = () => {
-      // Зацикливаем функцию (вызывается 60 раз в секунду)
       animationFrameId = requestAnimationFrame(draw);
 
       const waveCanvas = waveCanvasRef.current;
       const phaseCanvas = phaseCanvasRef.current;
 
-      // Очищаем оба канваса перед новым кадром
       waveCtx.clearRect(0, 0, waveCanvas.width, waveCanvas.height);
       phaseCtx.clearRect(0, 0, phaseCanvas.width, phaseCanvas.height);
 
-      // Получаем данные волны (Float32Array) из нашего движка
       const waveform = engine.getWaveformData();
       if (!waveform) return;
 
-      // === 1. РИСУЕМ ОСЦИЛЛОГРАФ (Правый канвас) ===
       waveCtx.lineWidth = 2;
       waveCtx.strokeStyle = '#fff';
       waveCtx.beginPath();
@@ -34,7 +30,6 @@ const Visualizer = () => {
       let x = 0;
       
       for (let i = 0; i < waveform.length; i++) {
-        // waveform[i] лежит в пределах [-1, 1]. Масштабируем, чтобы влезло в высоту канваса
         const y = (waveform[i] * 0.4 + 0.5) * waveCanvas.height;
         
         if (i === 0) waveCtx.moveTo(x, y);
@@ -44,8 +39,6 @@ const Visualizer = () => {
       }
       waveCtx.stroke();
 
-      // === 2. РИСУЕМ ФАЗОВЫЙ ПОРТРЕТ (Левый канвас) ===
-      // Рисуем амплитуду сигнала относительно немного сдвинутой копии этого же сигнала
       phaseCtx.fillStyle = 'rgba(255, 255, 255, 0.6)';
       const delay = 15; // Сдвиг (влияет на форму клубка)
       
@@ -58,16 +51,13 @@ const Visualizer = () => {
 
     draw();
 
-    // Очистка при размонтировании компонента
     return () => cancelAnimationFrame(animationFrameId);
   }, []);
 
   return (
     <div style={{ display: 'flex', gap: '30px', marginTop: '30px', alignItems: 'center' }}>
-      {/* Левый экран: Фигуры Лиссажу (хаотичное облако) */}
       <canvas ref={phaseCanvasRef} width={80} height={80} />
       
-      {/* Правый экран: Классическая волна */}
       <canvas ref={waveCanvasRef} width={300} height={80} />
     </div>
   );

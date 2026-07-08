@@ -3,7 +3,7 @@ import { useAppStore } from '../store/useAppStore';
 import { engine } from '../audio/AudioEngine';
 
 const SynthControls = () => {
-  const { instruments, activeBlockId, blocks, updateBlock, updateInstrument } = useAppStore();
+  const { instruments, activeBlockId, blocks, updateBlock, updateInstrument, setCurrentInstrument } = useAppStore();
 
   const activeBlock = useMemo(() => {
     return blocks.find(b => b.id === activeBlockId);
@@ -42,11 +42,17 @@ const SynthControls = () => {
         {/* WAVE SELECT */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: '8px', color: '#888' }}>WAVE TYPE:</span>
+          
+          {/* СИНХРОНИЗАЦИЯ: при смене инструмента кадра переключаемplayable-тембр клавиатуры/MIDI (Пункт 2) */}
           <select 
             className="ut-select" 
             style={{ borderColor: inst.color, padding: '1px 3px', fontSize: '9px' }}
             value={activeBlock.instrumentId} 
-            onChange={(e) => updateBlock(activeBlock.id, { instrumentId: e.target.value })}
+            onChange={(e) => {
+              const newInstId = e.target.value;
+              updateBlock(activeBlock.id, { instrumentId: newInstId });
+              setCurrentInstrument(newInstId); // Обновляемplayable-инструмент!
+            }}
           >
             <option value="triangle">TRIANGLE (Mellow)</option>
             <option value="saw">SAW (Aggressive)</option>
@@ -132,47 +138,29 @@ const SynthControls = () => {
 
         </div>
 
-        {/* ЧИСЛОВОЙ ВВОД ДЛЯ ЭФФЕКТОВ REVERB И DELAY (Пункт 2) */}
+        {/* COMPACT EFFECT BARS */}
         <div style={{ borderTop: '1px solid #222', paddingTop: '4px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
           
-          {/* REVERB */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '8px', color: '#888' }}>REVERB (%):</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <input 
-                type="range" 
-                min="0" max="1" step="0.05" 
-                style={{ width: '80px', accentColor: inst.color, height: '10px' }}
-                value={inst.reverb} 
-                onChange={(e) => handleParamChange('reverb', Number(e.target.value))} 
-              />
-              <input 
-                type="number" min="0" max="100"
-                style={{ width: '35px', background: '#000', color: '#fff', border: '1px solid #444', fontSize: '8px', textAlign: 'center' }}
-                value={Math.round((inst.reverb ?? 0.2) * 100)}
-                onChange={(e) => handleParamChange('reverb', Math.min(100, Math.max(0, Number(e.target.value))) / 100)}
-              />
-            </div>
+            <span style={{ fontSize: '8px', color: '#888' }}>REVERB ({Math.round(inst.reverb*100)}%):</span>
+            <input 
+              type="range" 
+              min="0" max="1" step="0.05" 
+              style={{ width: '120px', accentColor: inst.color, height: '10px' }}
+              value={inst.reverb} 
+              onChange={(e) => handleParamChange('reverb', Number(e.target.value))} 
+            />
           </div>
 
-          {/* DELAY */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '8px', color: '#888' }}>DELAY (%):</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <input 
-                type="range" 
-                min="0" max="1" step="0.05" 
-                style={{ width: '80px', accentColor: inst.color, height: '10px' }}
-                value={inst.delay} 
-                onChange={(e) => handleParamChange('delay', Number(e.target.value))} 
-              />
-              <input 
-                type="number" min="0" max="100"
-                style={{ width: '35px', background: '#000', color: '#fff', border: '1px solid #444', fontSize: '8px', textAlign: 'center' }}
-                value={Math.round((inst.delay ?? 0.1) * 100)}
-                onChange={(e) => handleParamChange('delay', Math.min(100, Math.max(0, Number(e.target.value))) / 100)}
-              />
-            </div>
+            <span style={{ fontSize: '8px', color: '#888' }}>DELAY ({Math.round(inst.delay*100)}%):</span>
+            <input 
+              type="range" 
+              min="0" max="1" step="0.05" 
+              style={{ width: '120px', accentColor: inst.color, height: '10px' }}
+              value={inst.delay} 
+              onChange={(e) => handleParamChange('delay', Number(e.target.value))} 
+            />
           </div>
 
         </div>

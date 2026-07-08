@@ -30,7 +30,6 @@ export const useAppStore = create((set, get) => ({
   currentPlayheadBeat: -1,
   liveActiveNotes: {}, 
 
-  // --- НОВОЕ: ОТОБРАЖЕНИЕ ЦИФР НА КРУГЕ (Пункт 1) ---
   showCircleLabels: true,
   setShowCircleLabels: (val) => set({ showCircleLabels: val }),
 

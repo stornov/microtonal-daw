@@ -1,9 +1,7 @@
-// Расчет частоты для любого индекса (включая отрицательные)
 export const getFrequency = (noteIndex, edo, baseFreq) => {
   return baseFreq * Math.pow(2, noteIndex / edo);
 };
 
-// Координаты круга
 export const getPointOnCircle = (index, totalPoints, radius, center) => {
   const angle = (index * 2 * Math.PI) / totalPoints - Math.PI / 2;
   return {
@@ -17,13 +15,10 @@ export const NOTE_NAMES_31 = [
   "Gb", "Gb", "G", "G#", "G#", "Ab", "Ab", "A", "A#", "A#", "Bb", "Bb", "B", "B#", "Cb"
 ];
 
-// --- МНОГООКТАВНОЕ ИМЯ НОТЫ (Пункт 5) ---
 export const getNoteName31 = (noteIndex) => {
   const edo = 31;
-  // Обрабатываем отрицательные индексы (низкие ноты) математически правильно
   const wrappedIndex = ((noteIndex % edo) + edo) % edo;
   
-  // Базовая октава C4 находится на шаге 0
   const octave = Math.floor(noteIndex / edo) + 4; 
   return `${NOTE_NAMES_31[wrappedIndex]}${octave}`;
 };
@@ -75,7 +70,6 @@ export const generateAllNotes = () => {
   return notes;
 };
 
-// Константы долей
 export const SUBDIVISIONS = {
   '1+/1': 6.0,
   '1/1': 4.0,

@@ -1,12 +1,11 @@
 import React, { useMemo } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { engine } from '../audio/AudioEngine';
-import { getNoteName31 } from '../utils/mathUtils';
+import { getNoteName31, getScaleNotesForEdo } from '../utils/mathUtils';
 
 const HexGrid = () => {
-  const { edo, blocks, activeBlockId, toggleNoteInActiveBlock, updateBlock, isPlaying, instruments, currentPlayheadBeat, hexOctaveShift, setHexOctaveShift } = useAppStore();
+  const { edo, currentScale, blocks, activeBlockId, toggleNoteInActiveBlock, updateBlock, isPlaying, instruments, currentPlayheadBeat, hexOctaveShift, setHexOctaveShift } = useAppStore();
 
-  // --- УВЕЛИЧЕННЫЙ РАЗМЕР СОТЫ (Пункт 2) ---
   const hexSize = 27; 
   const hexWidth = Math.sqrt(3) * hexSize;
   const hexHeight = 2 * hexSize;
@@ -19,6 +18,10 @@ const HexGrid = () => {
   }, [blocks, activeBlockId]);
 
   const currentNotes = activeBlock ? activeBlock.notes : [];
+
+  const allowedNotes = useMemo(() => {
+    return getScaleNotesForEdo(currentScale, edo);
+  }, [currentScale, edo]);
 
   const liveActiveNotes = useMemo(() => {
     if (!isPlaying || currentPlayheadBeat < 0) return {};
@@ -46,7 +49,7 @@ const HexGrid = () => {
     return points.join(' ');
   }, [hexSize]);
 
-  // Фильтр диапазона [C0, B10]
+  // Генерация сот в пределах C0 - B10
   const gridNodes = useMemo(() => {
     const nodes = [];
     for (let r = 0; r < rows; r++) {
@@ -58,7 +61,6 @@ const HexGrid = () => {
         let noteIndex = (q * 5 + r * 2) - 34; 
         noteIndex += hexOctaveShift * edo;
 
-        // Исключаем соты до B0 (-96) и после C10 (186) (Пункт 1)
         if (noteIndex < -96 || noteIndex > 186) {
           continue; 
         }
@@ -68,6 +70,15 @@ const HexGrid = () => {
     }
     return nodes;
   }, [rows, cols, hexWidth, hexHeight, hexOctaveShift, edo]);
+
+  // --- МАТЕМАТИЧЕСКИЙ ТОЧНЫЙ РАСЧЕТ ГАБАРИТОВ СЕТКИ (Пункт 1) ---
+  const totalSvgWidth = useMemo(() => {
+    return cols * hexWidth + hexWidth;
+  }, [cols, hexWidth]);
+
+  const totalSvgHeight = useMemo(() => {
+    return rows * (hexHeight * 0.75) + hexHeight;
+  }, [rows, hexHeight]);
 
   const activeRangeText = useMemo(() => {
     if (gridNodes.length === 0) return 'OUT OF RANGE';
@@ -91,10 +102,10 @@ const HexGrid = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', height: '100%', justifyContent: 'space-between', padding: '10px 0' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', height: '100%', justifyContent: 'space-between', padding: '10px 0', overflow: 'hidden' }}>
       
-      {/* УПРАВЛЕНИЕ ОКТАВАМИ */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '1px solid #222', width: '95%', paddingBottom: '8px', justifyContent: 'center' }}>
+      {/* ПАНЕЛЬ ОКТАВНОГО СДВИГА */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '1px solid #222', width: '95%', paddingBottom: '8px', justifyContent: 'center', flexShrink: 0 }}>
         <button 
           className="ut-btn" 
           onClick={() => setHexOctaveShift(Math.max(-4, hexOctaveShift - 1))}
@@ -118,8 +129,13 @@ const HexGrid = () => {
         </button>
       </div>
 
-      <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%', overflow: 'hidden' }}>
-        <svg width={cols * hexWidth + hexWidth} height={rows * hexHeight * 0.75 + hexHeight} style={{ maxWidth: '100%', maxHeight: '100%' }}>
+      {/* --- АДАПТИВНЫЙ ВЕКТОРНЫЙ SVG-КОНТЕЙНЕР СОТ (Пункт 1) --- */}
+      {/* viewBox позволяет сетке сжиматься без уродливых полос прокрутки! */}
+      <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', overflow: 'hidden', minHeight: 0 }}>
+        <svg 
+          viewBox={`0 0 ${totalSvgWidth} ${totalSvgHeight}`}
+          style={{ width: '100%', height: 'auto', maxWidth: `${totalSvgWidth}px`, maxHeight: '100%', overflow: 'visible' }}
+        >
           {gridNodes.map((node) => {
             const liveColors = Object.values(liveActiveNotes)
               .filter(item => item && item.notes.includes(node.noteIndex))
@@ -127,6 +143,9 @@ const HexGrid = () => {
 
             const isLiveActive = liveColors.length > 0;
             const isEditActive = currentNotes.includes(node.noteIndex);
+
+            const wrappedIndex = ((node.noteIndex % edo) + edo) % edo;
+            const isAllowed = allowedNotes.includes(wrappedIndex);
 
             let fillColor = '#000';
             let strokeColor = '#222';
@@ -146,9 +165,12 @@ const HexGrid = () => {
               <g 
                 key={`${node.r}-${node.q}`} 
                 transform={`translate(${node.x}, ${node.y})`}
-                onClick={() => handleHexClick(node.noteIndex)}
-                onContextMenu={(e) => handleRightClick(e, node.noteIndex)}
-                style={{ cursor: 'pointer' }}
+                onClick={() => isAllowed && handleHexClick(node.noteIndex)}
+                onContextMenu={(e) => isAllowed && handleRightClick(e, node.noteIndex)}
+                style={{ 
+                  cursor: isAllowed ? 'pointer' : 'not-allowed',
+                  opacity: isAllowed ? 1 : 0.12 
+                }}
               >
                 <polygon
                   className={`hex-polygon ${isLiveActive ? 'active' : ''}`}
@@ -156,6 +178,7 @@ const HexGrid = () => {
                   fill={fillColor}
                   stroke={strokeColor}
                   strokeWidth="1.2"
+                  style={{ pointerEvents: isAllowed ? 'auto' : 'none' }}
                 />
                 <text
                   x="0" y="-5"

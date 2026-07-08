@@ -7,12 +7,10 @@ class AudioEngine {
     this.synths = {};
     this.effects = {}; 
     
-    // Создаем центральный аудио-тракт
     this.analyser = new Tone.Analyser('waveform', 1024);
     this.volumeNode = new Tone.Volume(0);
     this.limiter = new Tone.Limiter(-1); 
 
-    // Направляем звук в анализатор, затем в громкость и лимитер [6]
     this.analyser.connect(this.volumeNode); 
     this.volumeNode.connect(this.limiter);
     this.limiter.toDestination();
@@ -36,12 +34,10 @@ class AudioEngine {
     const { instruments } = useAppStore.getState();
     for (const inst of instruments) {
       if (!this.synths[inst.id]) {
-        // Используем бесшовный Freeverb
         const reverb = new Tone.Freeverb({ roomSize: 0.6, dampening: 2000 });
         const delay = new Tone.FeedbackDelay("8n", 0.4);
         const synth = new Tone.PolySynth(Tone.Synth, { volume: -15 });
         
-        // Синтезатор -> Эхо -> Реверб -> Анализатор (Pre-Fader)
         synth.chain(delay, reverb, this.analyser);
         
         this.synths[inst.id] = synth;
@@ -103,7 +99,7 @@ class AudioEngine {
 
   stopAllImmediate() {
     Tone.Transport.stop(); 
-    Tone.Transport.cancel(0); // Очищаем шкалу полностью [6]
+    Tone.Transport.cancel(0);
     
     Object.values(this.synths).forEach(synth => {
       synth.releaseAll();
@@ -132,12 +128,10 @@ class AudioEngine {
     return this.analyser.getValue();
   }
 
-  // --- БЕЗУПРЕЧНЫЙ ПЕРЕСЧЕТ ТАЙМЛАЙНА С ПОЛНОЙ ОПРЕДЕЛЕННОСТЬЮ ВЕЛИЧИН ---
   async syncTimeline() {
     if (!this.isInitialized) return;
     const currentTicks = Tone.Transport.ticks;
     
-    // Сбрасываем все запланированные события [6]
     Tone.Transport.cancel(0);
 
     const state = useAppStore.getState();
@@ -162,7 +156,6 @@ class AudioEngine {
           const freqs = block.notes.map(n => getFrequency(n, currentEdo, blockBaseFreq));
           const durSec = block.durationBeats * (60 / useAppStore.getState().tempo);
           
-          // ТЕПЕРЬ ОПРЕДЕЛЕНО СТРОГО ВНУТРИ ОБЛАСТИ ВИДИМОСТИ КОЛБЭКА:
           const vel = (block.velocity !== undefined ? block.velocity : 100) / 127;
           
           synth.triggerAttackRelease(freqs, durSec, time, vel);
@@ -189,7 +182,6 @@ class AudioEngine {
 
     await this.syncTimeline(); 
 
-    // Логика догона (Catch-up) при старте с середины
     const state = useAppStore.getState();
     const ppq = Tone.Transport.PPQ || 192;
     const currentBeat = Tone.Transport.ticks / ppq; 
@@ -207,7 +199,6 @@ class AudioEngine {
           const remainingBeats = endBeat - currentBeat;
           const remainingSeconds = remainingBeats * (60 / state.tempo);
           
-          // Вычисляем velocity для догона
           const vel = (block.velocity !== undefined ? block.velocity : 100) / 127;
 
           synth.triggerAttackRelease(freqs, remainingSeconds, Tone.now(), vel);

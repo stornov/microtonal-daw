@@ -93,21 +93,12 @@ function App() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#000', padding: '15px', overflow: 'hidden' }}>
+    <div className="daw-app-container">
       
       <KeyboardController />
 
       {/* HEADER / ТУЛБАР В СТИЛЕ UNDERTALE */}
-      <div style={{ 
-        border: '2px solid #fff', 
-        padding: '12px 20px', 
-        marginBottom: '15px', 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        flexWrap: 'wrap', 
-        gap: '15px' 
-      }}>
+      <div className="daw-header-toolbar">
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <div>
@@ -131,11 +122,10 @@ function App() {
         
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
 
-          {/* ТУМБЛЕР ЦИФР КРУГА (Пункт 1) */}
           <button 
             className={`ut-btn ${showCircleLabels ? 'active' : ''}`}
             onClick={() => setShowCircleLabels(!showCircleLabels)}
-            style={{ padding: '4px 10px', fontSize: '10px', borderColor: '#7FFDEB', color: showCircleLabels ? '#000' : '#7FFDEB' }}
+            style={{ padding: '3px 8px', fontSize: '9px', borderColor: '#7FFDEB', color: showCircleLabels ? '#000' : '#7FFDEB' }}
           >
             LABELS: {showCircleLabels ? 'ON' : 'OFF'}
           </button>
@@ -164,25 +154,25 @@ function App() {
         </div>
       </div>
 
-      {/* ВЕРХНЯЯ РАБОЧАЯ ЗОНА */}
-      <div style={{ display: 'flex', flex: 1.6, gap: '15px', overflow: 'hidden', marginBottom: '15px', minHeight: '440px' }}>
+      {/* ВЕРХНЯЯ РАБОЧАЯ ЗОНА (Сфера + Соты) */}
+      <div className="daw-workspace-upper">
         
         {/* Сфера визуализации */}
-        <div style={{ flex: 1.1, border: '2px solid #fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#000', position: 'relative', padding: '10px' }}>
+        <div className="daw-circle-box">
           <CircleTuner />
-          <div style={{ marginTop: '5px', width: '100%', display: 'flex', justifyContent: 'center' }}><Visualizer /></div>
+          <div style={{ marginTop: '5px', width: '100%', display: 'flex', justifyContent: 'center', flexShrink: 0 }}><Visualizer /></div>
         </div>
         
         {/* Изоморфная сетка */}
-        <div style={{ flex: 1.4, border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#000', overflow: 'hidden' }}>
+        <div className="daw-hex-box">
           <HexGrid />
         </div>
 
       </div>
 
-      {/* НИЖНЯЯ РАБОЧАЯ ЗОНА */}
+      {/* НИЖНЯЯ РАБОЧАЯ ЗОНА (Синтезатор + Таймлайн) */}
       <div className="daw-bottom-rack">
-        <div style={{ width: '280px', flexShrink: 0, height: '100%' }}>
+        <div className="daw-synth-box">
           <SynthControls />
         </div>
         <Timeline />

@@ -17,14 +17,12 @@ const KeyboardController = () => {
     const handleKeyDown = async (e) => {
       if (document.activeElement.tagName === 'INPUT') return;
 
-      // --- СБРОС ФОКУСА С БЛОКА НА ESCAPE ---
       if (e.code === 'Escape') {
         e.preventDefault();
-        setActiveBlockId(null); // Убираем фокус
+        setActiveBlockId(null);
         return;
       }
 
-      // Горячая клавиша Ctrl+D / Cmd+D для дублирования [5]
       if ((e.ctrlKey || e.metaKey) && e.code === 'KeyD') {
         e.preventDefault(); 
         if (activeBlockId) {
@@ -33,7 +31,6 @@ const KeyboardController = () => {
         return;
       }
 
-      // Переключение воспроизведения на пробел [5]
       if (e.code === 'Space') {
         e.preventDefault(); 
         const { isPlaying } = useAppStore.getState();
