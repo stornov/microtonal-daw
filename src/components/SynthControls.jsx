@@ -39,11 +39,9 @@ const SynthControls = () => {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
         
-        {/* WAVE SELECT */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: '8px', color: '#888' }}>WAVE TYPE:</span>
           
-          {/* СИНХРОНИЗАЦИЯ: при смене инструмента кадра переключаемplayable-тембр клавиатуры/MIDI (Пункт 2) */}
           <select 
             className="ut-select" 
             style={{ borderColor: inst.color, padding: '1px 3px', fontSize: '9px' }}
@@ -61,7 +59,6 @@ const SynthControls = () => {
           </select>
         </div>
 
-        {/* COMPACT ADSR */}
         <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'flex-start', margin: '2px 0' }}>
           
           <div className="vertical-slider-container">
@@ -138,7 +135,6 @@ const SynthControls = () => {
 
         </div>
 
-        {/* COMPACT EFFECT BARS */}
         <div style={{ borderTop: '1px solid #222', paddingTop: '4px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
           
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

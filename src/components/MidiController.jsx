@@ -42,31 +42,24 @@ const MidiController = () => {
     const handleMidiMessage = async (message) => {
       const [status, midiNote, velocity] = message.data;
 
-      // Мапим ноту линейно относительно Middle C (До первой октавы = шаг 0)
       const noteIndex = midiNote - 60; 
 
-      // Вычисляем октавный сдвиг для проверки лада
       const wrappedIndex = ((noteIndex % edo) + edo) % edo;
       const allowedNotes = getScaleNotesForEdo(currentScale, edo);
 
-      // Проверяем лад перед запуском звука
       if (!allowedNotes.includes(wrappedIndex)) return;
 
-      // Note On
       if (status >= 144 && status <= 159 && velocity > 0) {
         await engine.init();
         engine.playNote(noteIndex);
         
-        // Автоматически записываем ноту в активный кадр (Пункт 2)
         if (activeBlockId) {
           addNoteToActiveBlock(noteIndex);
         }
       } 
-      // Note Off
       else if ((status >= 128 && status <= 143) || (status >= 144 && status <= 159 && velocity === 0)) {
         engine.stopNote(noteIndex);
         
-        // Стираем ноту из активного кадра при отпускании (Пункт 2)
         if (activeBlockId) {
           removeNoteFromActiveBlock(noteIndex);
         }

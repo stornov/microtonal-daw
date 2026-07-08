@@ -74,7 +74,7 @@ const Timeline = () => {
   useEffect(() => {
     if (isPlaying && timelineScrollRef.current && currentPlayheadBeat >= 0) {
       const container = timelineScrollRef.current;
-      const playheadX = 120 + currentPlayheadBeat * zoomX; // Физическая позиция плейхеда в пикселях
+      const playheadX = 120 + currentPlayheadBeat * zoomX;
       
       const rightBoundary = container.scrollLeft + container.clientWidth - 80;
       

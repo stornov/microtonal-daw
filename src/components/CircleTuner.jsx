@@ -109,7 +109,6 @@ const CircleTuner = () => {
       style={{ width: '100%', height: 'auto', maxHeight: '390px', overflow: 'visible' }} 
     >
       
-      {/* 11 ОРБИТ КАРТЫ КООРДИНАТ */}
       {octaveOffsets.map(octOffset => {
         const radius = baseRadius + octOffset * 15;
         const isBase = octOffset === 0;
@@ -119,7 +118,6 @@ const CircleTuner = () => {
             cx={center}
             cy={center}
             r={radius}
-            // --- ТЕПЕРЬ ОСНОВНАЯ ОРБИТА СТАЛА БЕЛОЙ (#ffffff) ---
             stroke={isBase ? "#ffffff" : "rgba(255,255,255,0.15)"}
             strokeWidth={isBase ? 1.6 : 0.8}
             fill="none"
@@ -128,7 +126,6 @@ const CircleTuner = () => {
         );
       })}
 
-      {/* ОТРИСОВКА МНОГОУГОЛЬНИКОВ */}
       {isPlaying ? (
         Object.entries(liveActiveNotes).map(([blockId, item]) => {
           if (!item || !item.notes || item.notes.length <= 1) return null;
@@ -161,7 +158,6 @@ const CircleTuner = () => {
         )
       )}
 
-      {/* ОТРИСОВКА ИНТЕРАКТИВНЫХ ТОЧЕК НА ВСЕХ ОРБИТАХ */}
       {allInteractiveNodes.map((node) => {
         const liveColors = Object.values(liveActiveNotes)
           .filter(item => item && item.notes.includes(node.index))

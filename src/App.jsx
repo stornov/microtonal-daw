@@ -13,14 +13,12 @@ function App() {
   const { edo, setEdo, volume, setVolume, currentScale, setCurrentScale, tempo, instruments, blocks, isPlaying, newProject, loadProject, showCircleLabels, setShowCircleLabels } = useAppStore();
   const fileInputRef = useRef(null);
 
-  // Глобальное глушение контекстного меню браузера [5]
   useEffect(() => {
     const preventContextMenu = (e) => e.preventDefault();
     window.addEventListener('contextmenu', preventContextMenu);
     return () => window.removeEventListener('contextmenu', preventContextMenu);
   }, []);
 
-  // Тихий бут звука
   useEffect(() => {
     const silentBoot = async () => {
       await engine.init(); 
@@ -97,7 +95,6 @@ function App() {
       
       <KeyboardController />
 
-      {/* HEADER / ТУЛБАР В СТИЛЕ UNDERTALE */}
       <div className="daw-header-toolbar">
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
@@ -154,23 +151,19 @@ function App() {
         </div>
       </div>
 
-      {/* ВЕРХНЯЯ РАБОЧАЯ ЗОНА (Сфера + Соты) */}
       <div className="daw-workspace-upper">
         
-        {/* Сфера визуализации */}
         <div className="daw-circle-box">
           <CircleTuner />
           <div style={{ marginTop: '5px', width: '100%', display: 'flex', justifyContent: 'center', flexShrink: 0 }}><Visualizer /></div>
         </div>
         
-        {/* Изоморфная сетка */}
         <div className="daw-hex-box">
           <HexGrid />
         </div>
 
       </div>
 
-      {/* НИЖНЯЯ РАБОЧАЯ ЗОНА (Синтезатор + Таймлайн) */}
       <div className="daw-bottom-rack">
         <div className="daw-synth-box">
           <SynthControls />

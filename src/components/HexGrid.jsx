@@ -49,7 +49,6 @@ const HexGrid = () => {
     return points.join(' ');
   }, [hexSize]);
 
-  // Генерация сот в пределах C0 - B10
   const gridNodes = useMemo(() => {
     const nodes = [];
     for (let r = 0; r < rows; r++) {
@@ -71,7 +70,6 @@ const HexGrid = () => {
     return nodes;
   }, [rows, cols, hexWidth, hexHeight, hexOctaveShift, edo]);
 
-  // --- МАТЕМАТИЧЕСКИЙ ТОЧНЫЙ РАСЧЕТ ГАБАРИТОВ СЕТКИ (Пункт 1) ---
   const totalSvgWidth = useMemo(() => {
     return cols * hexWidth + hexWidth;
   }, [cols, hexWidth]);
@@ -104,7 +102,6 @@ const HexGrid = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', height: '100%', justifyContent: 'space-between', padding: '10px 0', overflow: 'hidden' }}>
       
-      {/* ПАНЕЛЬ ОКТАВНОГО СДВИГА */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '1px solid #222', width: '95%', paddingBottom: '8px', justifyContent: 'center', flexShrink: 0 }}>
         <button 
           className="ut-btn" 
@@ -129,8 +126,6 @@ const HexGrid = () => {
         </button>
       </div>
 
-      {/* --- АДАПТИВНЫЙ ВЕКТОРНЫЙ SVG-КОНТЕЙНЕР СОТ (Пункт 1) --- */}
-      {/* viewBox позволяет сетке сжиматься без уродливых полос прокрутки! */}
       <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', overflow: 'hidden', minHeight: 0 }}>
         <svg 
           viewBox={`0 0 ${totalSvgWidth} ${totalSvgHeight}`}

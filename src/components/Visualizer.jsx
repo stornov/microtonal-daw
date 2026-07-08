@@ -40,12 +40,12 @@ const Visualizer = () => {
       waveCtx.stroke();
 
       phaseCtx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-      const delay = 15; // Сдвиг (влияет на форму клубка)
+      const delay = 15;
       
       for (let i = 0; i < waveform.length - delay; i++) {
         const px = (waveform[i] * 0.4 + 0.5) * phaseCanvas.width;
         const py = (waveform[i + delay] * 0.4 + 0.5) * phaseCanvas.height;
-        phaseCtx.fillRect(px, py, 1.5, 1.5); // Рисуем маленькие точки
+        phaseCtx.fillRect(px, py, 1.5, 1.5);
       }
     };
 
