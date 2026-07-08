@@ -1,86 +1,405 @@
-import React from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { engine } from '../audio/AudioEngine';
+import { formatBeatsToFraction } from '../utils/mathUtils';
+import * as Tone from 'tone';
 
 const Timeline = () => {
   const { 
-    snapshots, 
-    activeSnapshotId, 
-    currentPlayingIndex, 
-    isPlaying, 
-    setActiveSnapshotId, 
-    addSnapshot, 
-    deleteActiveSnapshot, 
-    duplicateActiveSnapshot, 
-    updateActiveSnapshotDuration,
-    clearActiveSnapshot
+    blocks, activeBlockId, isPlaying, tempo, setTempo,
+    instruments, tracks, currentPlayheadBeat,
+    setActiveBlockId, addBlock, deleteBlock, updateBlock, clearActiveBlock,
+    addTrack, deleteTrack, setCurrentPlayheadBeat, duplicateBlock
   } = useAppStore();
 
-  const handlePlayToggle = async () => {
-    if (isPlaying) {
-      engine.stopSequencer();
+  const timelineScrollRef = useRef(null);
+  const zoomX = 40; 
+  const lastStopClickRef = useRef(0); 
+
+  const activeBlock = blocks.find(b => b.id === activeBlockId);
+
+  const handlePlay = async () => {
+    if (isPlaying) return;
+    await engine.startSequencer();
+  };
+
+  const handleStop = () => {
+    engine.stopSequencer();
+  };
+
+  const handleStopDoubleClick = () => {
+    engine.stopAllImmediate(); 
+    Tone.Transport.ticks = 0; 
+    setCurrentPlayheadBeat(0);
+  };
+
+  const handleStopClick = () => {
+    const now = Date.now();
+    const delay = 300; 
+
+    if (now - lastStopClickRef.current < delay) {
+      handleStopDoubleClick();
     } else {
-      await engine.startSequencer();
+      handleStop();
+    }
+    
+    lastStopClickRef.current = now;
+  };
+
+  const handleClearCadre = () => {
+    if (window.confirm("ARE YOU SURE YOU WANT TO CLEAR ALL NOTES IN THIS CADRE?")) {
+      clearActiveBlock();
     }
   };
 
-  return (
-    <div style={{ border: '2px solid #fff', padding: '15px', display: 'flex', flexDirection: 'column', gap: '15px', backgroundColor: '#000' }}>
+  const handleDeleteTrack = (trackId, index) => {
+    const streamName = `STREAM ${index + 1}`;
+    if (window.confirm(`ARE YOU SURE YOU WANT TO DELETE ${streamName} AND ALL ITS CADRES?`)) {
+      deleteTrack(trackId);
+    }
+  };
+
+  useEffect(() => {
+    let animId;
+    const updatePlayhead = () => {
+      const ppq = Tone.Transport.PPQ || 192;
+      const currentBeats = Tone.Transport.ticks / ppq;
+      setCurrentPlayheadBeat(currentBeats);
+      animId = requestAnimationFrame(updatePlayhead);
+    };
+    updatePlayhead();
+    return () => cancelAnimationFrame(animId);
+  }, [setCurrentPlayheadBeat]);
+
+  // --- ЭФФЕКТ АВТОМАТИЧЕСКОГО СКРОЛЛА (FOLLOW PLAYHEAD) (Пункт 1) ---
+  useEffect(() => {
+    if (isPlaying && timelineScrollRef.current && currentPlayheadBeat >= 0) {
+      const container = timelineScrollRef.current;
+      const playheadX = 120 + currentPlayheadBeat * zoomX; // Физическая позиция плейхеда в пикселях
       
-      {/* ПАНЕЛЬ КНОПОК */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button className="ut-btn" onClick={handlePlayToggle} style={{ borderColor: isPlaying ? '#ff4444' : '#fff', color: isPlaying ? '#ff4444' : '#fff' }}>
-            {isPlaying ? '■ STOP SEQUENCE' : '▶ PLAY SEQUENCE'}
+      // Граница прокрутки (правый край минус 80px)
+      const rightBoundary = container.scrollLeft + container.clientWidth - 80;
+      
+      if (playheadX > rightBoundary) {
+        // Прокручиваем контейнер вперед, оставляя 150px пространства до левого края
+        container.scrollLeft = playheadX - 150;
+      }
+      
+      // Сброс прокрутки на 0 при возврате в начало трека
+      if (currentPlayheadBeat < 0.1) {
+        container.scrollLeft = 0;
+      }
+    }
+  }, [currentPlayheadBeat, isPlaying, zoomX]);
+
+  const handleRulerMouseDown = (e) => {
+    e.preventDefault();
+    const rulerContainer = e.currentTarget;
+    const rect = rulerContainer.getBoundingClientRect();
+    const ppq = Tone.Transport.PPQ || 192;
+
+    const setPositionFromEvent = (clientX) => {
+      const scrollOffset = timelineScrollRef.current ? timelineScrollRef.current.scrollLeft : 0;
+      const xOnRuler = clientX - rect.left - 120 + scrollOffset;
+      const beats = Math.max(0, xOnRuler / zoomX);
+      const snappedBeats = Math.round(beats / 0.125) * 0.125; 
+      
+      Tone.Transport.ticks = snappedBeats * ppq;
+      setCurrentPlayheadBeat(snappedBeats);
+    };
+
+    setPositionFromEvent(e.clientX);
+
+    const handleMouseMove = (moveEvent) => {
+      setPositionFromEvent(moveEvent.clientX);
+    };
+
+    const handleMouseUp = () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleTrackLaneClick = (e, trackId) => {
+    if (e.button !== 0) return; 
+    if (e.target !== e.currentTarget) return; 
+
+    if (activeBlockId) {
+      setActiveBlockId(null);
+      return;
+    }
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const beats = clickX / zoomX;
+    const snappedBeat = Math.max(0, Math.floor(beats * 4) / 4);
+    addBlock(trackId, snappedBeat);
+  };
+
+  const handleBlockMouseDown = (e, block) => {
+    if (e.button !== 0) return; 
+    
+    e.preventDefault();
+    setActiveBlockId(block.id);
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const originalStartBeat = block.startBeat;
+    const originalTrackId = block.trackId;
+
+    const handleMouseMove = (moveEvent) => {
+      const dx = moveEvent.clientX - startX;
+      const dy = moveEvent.clientY - startY;
+
+      const beatDelta = Math.round((dx / zoomX) * 4) / 4; 
+      const newStartBeat = Math.max(0, originalStartBeat + beatDelta);
+
+      const rowOffset = Math.round(dy / 45); 
+      const currentTrackIndex = tracks.findIndex(t => t.id === originalTrackId);
+      let newTrackIndex = currentTrackIndex + rowOffset;
+      newTrackIndex = Math.max(0, Math.min(tracks.length - 1, newTrackIndex));
+      
+      const newTrackId = tracks[newTrackIndex].id;
+
+      updateBlock(block.id, { startBeat: newStartBeat, trackId: newTrackId });
+    };
+
+    const handleMouseUp = () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleResizeMouseDown = (e, block) => {
+    e.stopPropagation(); 
+    e.preventDefault();
+
+    const startX = e.clientX;
+    const originalDurationBeats = block.durationBeats;
+
+    const handleMouseMove = (moveEvent) => {
+      const dx = moveEvent.clientX - startX;
+      const beatDelta = dx / zoomX;
+      
+      const snappedDelta = Math.round(beatDelta / 0.125) * 0.125;
+      const newDurationBeats = Math.max(0.125, originalDurationBeats + snappedDelta);
+
+      updateBlock(block.id, { durationBeats: newDurationBeats });
+    };
+
+    const handleMouseUp = () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  return (
+    <div style={{ border: '2px solid #fff', padding: '12px', backgroundColor: '#000', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, minWidth: 0, height: '100%' }}>
+      
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', height: '30px' }}>
+        
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          
+          <button className={`ut-btn ${isPlaying ? 'active' : ''}`} onClick={handlePlay} style={{ borderColor: '#59DC90', color: '#59DC90' }}>
+            ▶ PLAY
           </button>
-          <button className="ut-btn" onClick={addSnapshot}>+ ADD CADRE</button>
-          <button className="ut-btn" onClick={duplicateActiveSnapshot}>DUPLICATE</button>
-          <button className="ut-btn" onClick={deleteActiveSnapshot} disabled={snapshots.length <= 1}>DELETE</button>
-          <button className="ut-btn" onClick={clearActiveSnapshot}>CLEAR CADRE</button>
+          
+          <button className="ut-btn" onClick={handleStopClick} style={{ borderColor: '#ff4444', color: '#ff4444' }}>
+            ■ STOP
+          </button>
+
+          <button className="ut-btn" onClick={addTrack} style={{ borderColor: '#fff', color: '#fff' }}>
+            + STREAM
+          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', borderLeft: '1px solid #333', paddingLeft: '10px' }}>
+            <span style={{ fontSize: '9px', color: '#888' }}>BPM:</span>
+            <input 
+              type="range" min="60" max="220" 
+              style={{ width: '60px', accentColor: '#fff', height: '10px' }}
+              value={tempo} onChange={(e) => setTempo(e.target.value)} 
+            />
+            <input 
+              type="number" min="60" max="220"
+              style={{ width: '35px', background: '#000', color: '#fff', border: '1px solid #444', fontSize: '8px', textAlign: 'center', padding: 0 }}
+              value={tempo}
+              onChange={(e) => setTempo(Math.min(220, Math.max(60, parseInt(e.target.value) || 120)))}
+            />
+          </div>
+
         </div>
 
-        {/* НАСТРОЙКА ДЛИТЕЛЬНОСТИ ТЕКУЩЕГО КАДРА */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '12px' }}>CADRE DURATION:</span>
-          <button className="ut-btn" style={{ padding: '2px 8px' }} onClick={() => updateActiveSnapshotDuration(-1)}>-</button>
-          <span style={{ fontSize: '14px', fontWeight: 'bold', width: '80px', textAlign: 'center' }}>
-            {snapshots.find(s => s.id === activeSnapshotId)?.duration || 4} BEATS
-          </span>
-          <button className="ut-btn" style={{ padding: '2px 8px' }} onClick={() => updateActiveSnapshotDuration(1)}>+</button>
-        </div>
+        {activeBlock && (
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', borderLeft: '1px solid #333', paddingLeft: '10px' }}>
+            <span style={{ fontSize: '10px', color: '#ffce32' }}>
+              LEN: {formatBeatsToFraction(activeBlock.durationBeats)} | ROOT: {activeBlock.baseFreq.toFixed(1)}Hz
+            </span>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <span style={{ fontSize: '9px', color: '#888' }}>VEL:</span>
+              <input 
+                type="range" 
+                min="0" max="127" 
+                style={{ width: '60px', accentColor: '#fff', height: '10px' }}
+                value={activeBlock.velocity ?? 100} 
+                onChange={(e) => updateBlock(activeBlock.id, { velocity: parseInt(e.target.value) })}
+              />
+              <input 
+                type="number" min="0" max="127"
+                style={{ width: '32px', background: '#000', color: '#fff', border: '1px solid #444', fontSize: '8px', textAlign: 'center', padding: 0 }}
+                value={activeBlock.velocity ?? 100}
+                onChange={(e) => updateBlock(activeBlock.id, { velocity: Math.min(127, Math.max(0, parseInt(e.target.value) || 0)) })}
+              />
+            </div>
+
+            <button 
+              className="ut-btn" 
+              style={{ fontSize: '9px', padding: '2px 6px', borderColor: '#59DC90', color: '#59DC90' }}
+              onClick={() => duplicateBlock(activeBlock.id)}
+            >
+              DUPLICATE
+            </button>
+
+            <button className="ut-btn" style={{ fontSize: '9px', padding: '2px 6px' }} onClick={() => updateBlock(activeBlock.id, { baseFreq: 261.63 })} style={{ borderColor: '#444' }}>
+              RESET ROOT
+            </button>
+            <button className="ut-btn" style={{ fontSize: '9px', padding: '2px 6px' }} onClick={handleClearCadre}>CLEAR CADRE</button>
+            <button className="ut-btn" style={{ fontSize: '9px', padding: '2px 6px', borderColor: '#ff4444', color: '#ff4444' }} onClick={() => deleteBlock(activeBlock.id)}>DELETE</button>
+          </div>
+        )}
       </div>
 
-      {/* ГОРИЗОНТАЛЬНАЯ ЛИНЕЙКА КАДРОВ */}
-      <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '10px' }}>
-        {snapshots.map((snap, index) => {
-          const isActive = snap.id === activeSnapshotId;
-          const isPlayingNow = currentPlayingIndex === index;
+      <div 
+        ref={timelineScrollRef} // Ссылка для скроллинга
+        style={{ position: 'relative', overflowX: 'auto', flex: 1, border: '1px solid #222', backgroundColor: '#050505' }}
+      >
+        
+        {/* Ruler */}
+        <div 
+          onMouseDown={handleRulerMouseDown} 
+          style={{ display: 'flex', height: '20px', backgroundColor: '#111', borderBottom: '1px solid #333', position: 'sticky', top: 0, zIndex: 10, cursor: 'col-resize' }}
+        >
+          <div style={{ width: '120px', backgroundColor: '#000', borderRight: '1px solid #333', cursor: 'default' }} onMouseDown={e => e.stopPropagation()} />
+          <div style={{ position: 'relative', flex: 1, height: '100%', overflow: 'hidden' }}>
+            {Array.from({ length: 64 }).map((_, i) => (
+              <div key={i} style={{
+                position: 'absolute',
+                left: `${i * 4 * zoomX}px`, 
+                width: `${4 * zoomX}px`,
+                height: '100%',
+                borderLeft: '1px solid #333',
+                paddingLeft: '4px',
+                fontSize: '8px',
+                color: '#666',
+                lineHeight: '20px',
+                pointerEvents: 'none'
+              }}>
+                BAR {i + 1}
+              </div>
+            ))}
+          </div>
+        </div>
 
-          return (
+        <div style={{ position: 'relative' }}>
+          
+          {currentPlayheadBeat >= 0 && (
+            <div style={{
+              position: 'absolute', top: 0, bottom: 0,
+              left: `${120 + currentPlayheadBeat * zoomX}px`,
+              width: '2px', backgroundColor: '#ff4444', zIndex: 100, pointerEvents: 'none'
+            }} />
+          )}
+
+          {tracks.map((track, trackIndex) => (
             <div 
-              key={snap.id}
-              onClick={() => setActiveSnapshotId(snap.id)}
-              style={{
-                border: isPlayingNow ? '3px solid #ff4444' : (isActive ? '2px solid #fff' : '1px solid #444'),
-                padding: '12px',
-                minWidth: '130px',
-                cursor: 'pointer',
-                backgroundColor: isPlayingNow ? 'rgba(255, 68, 68, 0.1)' : (isActive ? '#111' : '#000'),
-                textAlign: 'center'
-              }}
+              key={track.id}
+              style={{ display: 'flex', alignItems: 'center', height: '45px', borderBottom: '1px solid #222', position: 'relative' }}
             >
-              <div style={{ fontSize: '11px', color: isPlayingNow ? '#ff4444' : '#888', marginBottom: '5px' }}>
-                {isPlayingNow ? '● PLAYING' : `CADRE ${index + 1}`}
+              <div style={{ 
+                width: '120px', height: '100%', backgroundColor: '#111', borderRight: '1px solid #333', 
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 10px',
+                fontSize: '9px', fontWeight: 'bold', zIndex: 5
+              }}>
+                <span>STREAM {trackIndex + 1}</span>
+                {tracks.length > 1 && (
+                  <span 
+                    onClick={() => handleDeleteTrack(track.id, trackIndex)} 
+                    style={{ color: '#ff4444', cursor: 'pointer', fontSize: '9px', padding: '2px 4px' }}
+                  >
+                    [X]
+                  </span>
+                )}
               </div>
-              <div style={{ fontSize: '14px', fontWeight: 'bold' }}>
-                {snap.duration} BEATS
+
+              <div 
+                onMouseDown={(e) => handleTrackLaneClick(e, track.id)}
+                style={{ flex: 1, height: '100%', position: 'relative', cursor: 'cell' }}
+              >
+                {blocks
+                  .filter(b => b.trackId === track.id)
+                  .map((block) => {
+                    const width = block.durationBeats * zoomX;
+                    const left = block.startBeat * zoomX;
+                    const isSelected = block.id === activeBlockId;
+                    const inst = instruments.find(i => i.id === block.instrumentId) || instruments[0];
+
+                    return (
+                      <div
+                        key={block.id}
+                        onMouseDown={(e) => handleBlockMouseDown(e, block)} 
+                        onClick={() => setActiveBlockId(block.id)}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          deleteBlock(block.id);
+                        }}
+                        style={{
+                          position: 'absolute',
+                          left: `${left}px`,
+                          width: `${width}px`,
+                          height: '35px',
+                          top: '5px',
+                          border: isSelected ? '2px solid #fff' : `1px solid ${inst.color}`,
+                          backgroundColor: isSelected ? inst.color : `${inst.color}15`,
+                          color: isSelected ? '#000' : '#fff',
+                          cursor: 'grab',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '8px',
+                          fontWeight: 'bold',
+                          overflow: 'hidden',
+                          whiteSpace: 'nowrap',
+                          zIndex: 6
+                        }}
+                      >
+                        <div>{inst.name}</div>
+                        <div 
+                          onMouseDown={(e) => handleResizeMouseDown(e, block)}
+                          style={{
+                            position: 'absolute', right: 0, top: 0, bottom: 0,
+                            width: '8px', cursor: 'ew-resize',
+                            backgroundColor: 'rgba(255,255,255,0.2)'
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
               </div>
-              <div style={{ fontSize: '10px', color: '#666', marginTop: '5px' }}>
-                L: {snap.layers['inst_1']?.length || 0} | B: {snap.layers['inst_2']?.length || 0}
-              </div>
+
             </div>
-          );
-        })}
+          ))}
+        </div>
       </div>
 
     </div>

@@ -12,26 +12,20 @@ body {
   box-sizing: border-box;
 }
 
-/* Скроллбары */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
 }
-::-webkit-scrollbar-track {
-  background: #000;
-}
-::-webkit-scrollbar-thumb {
-  background: #fff;
-}
+::-webkit-scrollbar-track { background: #000; }
+::-webkit-scrollbar-thumb { background: #fff; }
 
-/* Кнопки в стиле Undertale */
 .ut-btn {
   background-color: #000;
   color: #fff;
   border: 2px solid #fff;
   padding: 6px 14px;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: bold;
   cursor: pointer;
   text-transform: uppercase;
@@ -41,19 +35,73 @@ body {
   color: #000;
 }
 .ut-btn:disabled {
-  border-color: #444;
-  color: #444;
+  border-color: #333;
+  color: #333;
   cursor: not-allowed;
 }
 
-/* Выпадающие списки */
 .ut-select {
   background-color: #000;
   color: #fff;
   border: 2px solid #fff;
   padding: 4px 8px;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 11px;
   outline: none;
   cursor: pointer;
+}
+
+/* === ИСПРАВЛЕННЫЕ НАРАБОТКИ СЛАЙДЕРОВ ADSR (Пункт 3) === */
+.vertical-slider-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 40px; /* Компактный ровный отступ */
+  height: 100%;
+}
+
+/* Использование нативного вертикального режима (без раздувания маргинов!) */
+.vertical-slider {
+  -webkit-appearance: none;
+  writing-mode: vertical-lr; /* Нативная вертикальная разметка */
+  direction: rtl;            /* Ползунок растет снизу вверх */
+  width: 8px;
+  height: 100px;             /* Фиксированная высота слайдера */
+  background: #222;
+  border: 1px solid #fff;
+  outline: none;
+  padding: 0;
+  margin: 0;
+}
+
+.vertical-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 8px; /* Четкий прямоугольный бегунок */
+  background: #fff;
+  border: 1px solid #000;
+  cursor: pointer;
+}
+
+.daw-bottom-rack {
+  display: flex;
+  gap: 15px;
+  height: 280px; 
+  min-height: 280px;
+  max-height: 280px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.fade-text {
+  transition: opacity 1s ease-out;
+}
+
+.hex-polygon {
+  transition: fill 1s ease, stroke 1s ease;
+}
+.hex-polygon.active {
+  transition: none; 
 }

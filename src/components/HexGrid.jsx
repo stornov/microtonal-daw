@@ -1,24 +1,41 @@
 import React, { useMemo } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { engine } from '../audio/AudioEngine';
+import { getNoteName31 } from '../utils/mathUtils';
 
 const HexGrid = () => {
-  const { edo, snapshots, activeSnapshotId, toggleNoteInActiveSnapshot } = useAppStore();
+  const { edo, blocks, activeBlockId, toggleNoteInActiveBlock, updateBlock, isPlaying, instruments, currentPlayheadBeat, hexOctaveShift, setHexOctaveShift } = useAppStore();
 
-  const hexSize = 15;
+  // --- УВЕЛИЧЕННЫЙ РАЗМЕР СОТЫ (Пункт 2) ---
+  const hexSize = 27; 
   const hexWidth = Math.sqrt(3) * hexSize;
   const hexHeight = 2 * hexSize;
   
-  const rows = 10;
-  const cols = 12;
+  const rows = 9;
+  const cols = 11;
 
-  const currentSnap = useMemo(() => {
-    return snapshots.find(s => s.id === activeSnapshotId) || { layers: {} };
-  }, [snapshots, activeSnapshotId]);
+  const activeBlock = useMemo(() => {
+    return blocks.find(b => b.id === activeBlockId);
+  }, [blocks, activeBlockId]);
 
-  const allActiveNotes = useMemo(() => {
-    return Object.values(currentSnap.layers).flat();
-  }, [currentSnap]);
+  const currentNotes = activeBlock ? activeBlock.notes : [];
+
+  const liveActiveNotes = useMemo(() => {
+    if (!isPlaying || currentPlayheadBeat < 0) return {};
+    const active = {};
+    blocks.forEach((block) => {
+      const endBeat = block.startBeat + block.durationBeats;
+      if (currentPlayheadBeat >= block.startBeat && currentPlayheadBeat < endBeat) {
+        const inst = instruments.find(i => i.id === blockActiveInstrumentId(block));
+        active[block.id] = { notes: block.notes, color: inst ? inst.color : '#fff' };
+      }
+    });
+    return active;
+  }, [blocks, isPlaying, currentPlayheadBeat, instruments]);
+
+  function blockActiveInstrumentId(b) {
+    return b.instrumentId || 'triangle';
+  }
 
   const hexPolygonCoords = useMemo(() => {
     const points = [];
@@ -29,6 +46,7 @@ const HexGrid = () => {
     return points.join(' ');
   }, [hexSize]);
 
+  // Фильтр диапазона [C0, B10]
   const gridNodes = useMemo(() => {
     const nodes = [];
     for (let r = 0; r < rows; r++) {
@@ -36,51 +54,137 @@ const HexGrid = () => {
         const xOffset = (r % 2 === 0) ? 0 : hexWidth / 2;
         const x = q * hexWidth + xOffset + hexWidth;
         const y = r * (hexHeight * 0.75) + hexHeight;
-        let noteIndex = (q * 5 + r * 2) % edo;
+        
+        let noteIndex = (q * 5 + r * 2) - 34; 
+        noteIndex += hexOctaveShift * edo;
+
+        // Исключаем соты до B0 (-96) и после C10 (186) (Пункт 1)
+        if (noteIndex < -96 || noteIndex > 186) {
+          continue; 
+        }
+
         nodes.push({ r, q, x, y, noteIndex });
       }
     }
     return nodes;
-  }, [rows, cols, hexWidth, hexHeight, edo]);
+  }, [rows, cols, hexWidth, hexHeight, hexOctaveShift, edo]);
+
+  const activeRangeText = useMemo(() => {
+    if (gridNodes.length === 0) return 'OUT OF RANGE';
+    const minNote = gridNodes[0].noteIndex;
+    const maxNote = gridNodes[gridNodes.length - 1].noteIndex;
+    return `${getNoteName31(minNote)} - ${getNoteName31(maxNote)}`;
+  }, [gridNodes]);
 
   const handleHexClick = async (index) => {
     await engine.init();
     engine.playNote(index);
-    setTimeout(() => engine.stopNote(index), 300);
-    toggleNoteInActiveSnapshot(index);
+    setTimeout(() => engine.stopNote(index), 350);
+    toggleNoteInActiveBlock(index);
+  };
+
+  const handleRightClick = (e, index) => {
+    e.preventDefault(); 
+    if (!activeBlock) return;
+    const targetFreq = 261.63 * Math.pow(2, index / edo);
+    updateBlock(activeBlock.id, { baseFreq: targetFreq });
   };
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <svg width={cols * hexWidth + hexWidth} height={rows * hexHeight * 0.75 + hexHeight}>
-        {gridNodes.map((node) => {
-          const isActive = allActiveNotes.includes(node.noteIndex);
-          return (
-            <g 
-              key={`${node.r}-${node.q}`} 
-              transform={`translate(${node.x}, ${node.y})`}
-              onClick={() => handleHexClick(node.noteIndex)}
-              style={{ cursor: 'pointer' }}
-            >
-              <polygon
-                points={hexPolygonCoords}
-                fill={isActive ? '#fff' : '#000'}
-                stroke={isActive ? '#fff' : '#222'}
-                strokeWidth="1"
-              />
-              <text
-                x="0" y="1"
-                fill={isActive ? '#000' : '#444'}
-                fontSize="9"
-                textAnchor="middle" alignmentBaseline="middle"
-                pointerEvents="none"
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', height: '100%', justifyContent: 'space-between', padding: '10px 0' }}>
+      
+      {/* УПРАВЛЕНИЕ ОКТАВАМИ */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '1px solid #222', width: '95%', paddingBottom: '8px', justifyContent: 'center' }}>
+        <button 
+          className="ut-btn" 
+          onClick={() => setHexOctaveShift(Math.max(-4, hexOctaveShift - 1))}
+          disabled={hexOctaveShift <= -4} 
+          style={{ padding: '4px 10px', fontSize: '10px' }}
+        >
+          ◀ OCT DOWN
+        </button>
+
+        <span style={{ fontSize: '11px', fontWeight: 'bold', fontFamily: 'monospace', color: '#ffce32', minWidth: '150px', textAlign: 'center' }}>
+          OCT SHIFT: {hexOctaveShift > 0 ? `+${hexOctaveShift}` : hexOctaveShift} ({activeRangeText})
+        </span>
+
+        <button 
+          className="ut-btn" 
+          onClick={() => setHexOctaveShift(Math.min(6, hexOctaveShift + 1))}
+          disabled={hexOctaveShift >= 6} 
+          style={{ padding: '4px 10px', fontSize: '10px' }}
+        >
+          OCT UP ▶
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%', overflow: 'hidden' }}>
+        <svg width={cols * hexWidth + hexWidth} height={rows * hexHeight * 0.75 + hexHeight} style={{ maxWidth: '100%', maxHeight: '100%' }}>
+          {gridNodes.map((node) => {
+            const liveColors = Object.values(liveActiveNotes)
+              .filter(item => item && item.notes.includes(node.noteIndex))
+              .map(item => item.color);
+
+            const isLiveActive = liveColors.length > 0;
+            const isEditActive = currentNotes.includes(node.noteIndex);
+
+            let fillColor = '#000';
+            let strokeColor = '#222';
+            let textStyleColor = '#555';
+
+            if (isLiveActive) {
+              fillColor = '#fff';
+              strokeColor = '#fff';
+              textStyleColor = '#000';
+            } else if (isEditActive) {
+              fillColor = '#111';
+              strokeColor = '#fff';
+              textStyleColor = '#fff';
+            }
+
+            return (
+              <g 
+                key={`${node.r}-${node.q}`} 
+                transform={`translate(${node.x}, ${node.y})`}
+                onClick={() => handleHexClick(node.noteIndex)}
+                onContextMenu={(e) => handleRightClick(e, node.noteIndex)}
+                style={{ cursor: 'pointer' }}
               >
-                {node.noteIndex}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
+                <polygon
+                  className={`hex-polygon ${isLiveActive ? 'active' : ''}`}
+                  points={hexPolygonCoords}
+                  fill={fillColor}
+                  stroke={strokeColor}
+                  strokeWidth="1.2"
+                />
+                <text
+                  x="0" y="-5"
+                  fill={textStyleColor}
+                  fontSize="10px"
+                  fontWeight="bold"
+                  fontFamily="inherit"
+                  textAnchor="middle" alignmentBaseline="middle"
+                  pointerEvents="none"
+                >
+                  {getNoteName31(node.noteIndex)}
+                </text>
+                <text
+                  x="0" y="8"
+                  fill={textStyleColor}
+                  fontSize="8px"
+                  fontFamily="inherit"
+                  textAnchor="middle" alignmentBaseline="middle"
+                  pointerEvents="none"
+                  opacity="0.5"
+                >
+                  {node.noteIndex}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
     </div>
   );
 };

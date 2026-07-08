@@ -1,9 +1,9 @@
-// Расчет частоты ноты
+// Расчет частоты для любого индекса (включая отрицательные)
 export const getFrequency = (noteIndex, edo, baseFreq) => {
   return baseFreq * Math.pow(2, noteIndex / edo);
 };
 
-// Расчет координат точки на круге
+// Координаты круга
 export const getPointOnCircle = (index, totalPoints, radius, center) => {
   const angle = (index * 2 * Math.PI) / totalPoints - Math.PI / 2;
   return {
@@ -12,7 +12,56 @@ export const getPointOnCircle = (index, totalPoints, radius, center) => {
   };
 };
 
-// Генерация списка нот от C0 до B10
+export const NOTE_NAMES_31 = [
+  "C", "C#", "C#", "Db", "Db", "D", "D#", "D#", "Eb", "Eb", "E", "E#", "Fb", "F", "F#", "F#",
+  "Gb", "Gb", "G", "G#", "G#", "Ab", "Ab", "A", "A#", "A#", "Bb", "Bb", "B", "B#", "Cb"
+];
+
+// --- МНОГООКТАВНОЕ ИМЯ НОТЫ (Пункт 5) ---
+export const getNoteName31 = (noteIndex) => {
+  const edo = 31;
+  // Обрабатываем отрицательные индексы (низкие ноты) математически правильно
+  const wrappedIndex = ((noteIndex % edo) + edo) % edo;
+  
+  // Базовая октава C4 находится на шаге 0
+  const octave = Math.floor(noteIndex / edo) + 4; 
+  return `${NOTE_NAMES_31[wrappedIndex]}${octave}`;
+};
+
+export const formatBeatsToFraction = (beats) => {
+  const thirtySeconds = Math.round(beats / 0.125);
+  if (thirtySeconds === 32) return "1/1";
+  if (thirtySeconds === 16) return "1/2";
+  if (thirtySeconds === 8) return "1/4";
+  if (thirtySeconds === 4) return "1/8";
+  if (thirtySeconds === 2) return "1/16";
+  if (thirtySeconds === 1) return "1/32";
+
+  const gcd = (a, b) => b ? gcd(b, a % b) : a;
+  const divisor = gcd(thirtySeconds, 32);
+  const num = thirtySeconds / divisor;
+  const den = 32 / divisor;
+  return `${num}/${den}`;
+};
+
+export const getScaleNotesForEdo = (scaleType, EDO) => {
+  if (scaleType === 'chromatic') {
+    return Array.from({ length: EDO }, (_, i) => i);
+  }
+
+  const scaleCents = {
+    major: [0, 200, 400, 500, 700, 900, 1100],
+    minor: [0, 200, 300, 500, 700, 800, 1000],
+    pentatonic: [0, 200, 400, 700, 900],
+    just_major: [0, 203.9, 386.3, 498.0, 702.0, 884.4, 1088.3]
+  }[scaleType];
+
+  if (!scaleCents) return [];
+
+  const allowedSteps = scaleCents.map(cents => Math.round((cents / 1200) * EDO));
+  return [...new Set(allowedSteps)].sort((a, b) => a - b);
+};
+
 export const generateAllNotes = () => {
   const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   const notes = [];
@@ -26,26 +75,13 @@ export const generateAllNotes = () => {
   return notes;
 };
 
-// --- НОВОЕ: РАСЧЕТ РАЗРЕШЕННЫХ НОТ ДЛЯ ЛАДОВ ---
-export const getScaleNotesForEdo = (scaleType, EDO) => {
-  if (scaleType === 'chromatic') {
-    // Возвращаем все ноты
-    return Array.from({ length: EDO }, (_, i) => i);
-  }
-
-  // Центы для разных ладов
-  const scaleCents = {
-    major: [0, 200, 400, 500, 700, 900, 1100],            // Темперированный Мажор
-    minor: [0, 200, 300, 500, 700, 800, 1000],           // Темперированный Минор
-    pentatonic: [0, 200, 400, 700, 900],                 // Пентатоника
-    just_major: [0, 203.9, 386.3, 498.0, 702.0, 884.4, 1088.3] // Чистый строй (Just Intonation 5-limit)
-  }[scaleType];
-
-  if (!scaleCents) return [];
-
-  // Переводим центы в шаги текущего EDO по формуле
-  const allowedSteps = scaleCents.map(cents => Math.round((cents / 1200) * EDO));
-  
-  // Убираем дубликаты (актуально для маленьких EDO, например 5 EDO)
-  return [...new Set(allowedSteps)].sort((a, b) => a - b);
+// Константы долей
+export const SUBDIVISIONS = {
+  '1+/1': 6.0,
+  '1/1': 4.0,
+  '1/2': 2.0,
+  '1/4': 1.0,
+  '1/8': 0.5,
+  '1/16': 0.25,
+  '1/32': 0.125
 };
