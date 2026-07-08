@@ -1,16 +1,68 @@
-# React + Vite
+# 🌌 MICROTONAL_DAW
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> Минималистичная ретро-геометрическая рабочая станция для исследования и создания музыки за пределами стандартного 12-тонового строя (12-TET).
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 🚀 Основные возможности (Features)
 
-## React Compiler
+*   **Динамический EDO-строй:** Свободно делите октаву на любое количество равных частей (от 5 до 72 EDO) прямо во время игры.
+*   **11-орбитальный круговой радар-визуализатор:** Уникальное концентрическое поле координат (от октавы 0 до октавы 10). Аккорды строятся как объемные многоугольники, натягивающие неоновые грани между орбитами.
+*   **Адаптивная изоморфная клавиатура сот:** Гексагональная сетка (сетка созвучий), расширенная до 3 полных октав с возможностью мгновенного сдвига (Octave Shift) от баса C0 до ультра-верхов B10.
+*   **Универсальный Scale-фильтр:** Мгновенное наложение масок ладов (Chromatic, Major, Minor, Pentatonic, Just Intonation 5-limit) на соты и круг, блокирующее фальшивые ноты.
+*   **Индивидуальный тональный центр (Root) кадров:** Сделайте правый клик по любой соте или точке круга, чтобы транспонировать тональность отдельного блока на лету.
+*   **Мульти-трековый параллельный таймлайн:** Компонуйте музыку из параллельно звучащих кадров разных инструментов. Блоки можно плавно перетаскивать мышкой между дорожками и растягивать за правый край с точностью до 1/32 доли.
+*   **Редактор звука и ADSR:** Тонкая прямоугольная панель ADSR с нативными вертикальными фейдерами и точным числовым вводом для каждого кадра, дополненная пространственными эффектами Reverb и Delay.
+*   **Аппаратный скраббинг и Panic-кнопка:** Плавное перемещение бегунка по линейке тактов в реальном времени. Двойной клик на STOP мгновенно глушит все синтезаторы и звуковые хвосты эффектов.
+*   **Портативность проектов:** Сохраняйте созданные композиции и звуки в файлы `.json` и загружайте их обратно в один клик!
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the ESLint configuration
+## 🎧 Инструменты и Цветовая гамма (Deltarune-palette)
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+*   `TRIANGLE` — Зеленый (`#59DC90`): мягкий, певучий флейтовый тембр.
+*   `SAW` — Розовый (`#ED6ED8`): агрессивная, богатая гармониками пила.
+*   `SQUARE` — Голубой (`#7FFDEB`): классический 8-битный ретро-звук.
+*   `SINE` — Желтый (`#FFCE32`): чистый, глубокий саб-бас.
+
+---
+
+## ⌨️ Горячие клавиши (Hotkeys)
+
+*   `Space` (Пробел) — Запуск / Пауза воспроизведения.
+*   `Esc` — Снять фокус (деселект) с кадра на таймлайне.
+*   `Ctrl + D` (или `Cmd + D`) — Продублировать выделенный кадр на таймлайне встык за оригиналом.
+*   **Двойной клик на STOP (■):** Полный аудио-сброс (Panic).
+*   **Буквенные ряды клавиатуры ПК:** Полноценное микротональное пианино (работает при любой раскладке клавиатуры компьютера).
+
+---
+
+## 🛠 Установка и запуск локально (Local Setup)
+
+Для запуска проекта на своем компьютере у вас должен быть установлен Node.js.
+
+```bash
+# 1. Клонируйте репозиторий
+git clone https://github.com/stornov/microtonal-daw.git
+
+# 2. Перейдите в папку проекта
+cd microtonal-daw
+
+# 3. Установите зависимости
+npm install
+
+# 4. Запустите сервер разработки
+npm run dev
+```
+
+Откройте `http://localhost:5173` в браузере для работы с приложением.
+
+---
+
+## 🌍 Деплой на GitHub Pages
+
+Публикация на хостинг осуществляется одной командой благодаря пакету `gh-pages`:
+
+```bash
+npm run deploy
+```
