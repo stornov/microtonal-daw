@@ -1,0 +1,59 @@
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #000;
+  color: #fff;
+  font-family: 'Courier New', Courier, monospace;
+  overflow: hidden;
+  user-select: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Скроллбары */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #000;
+}
+::-webkit-scrollbar-thumb {
+  background: #fff;
+}
+
+/* Кнопки в стиле Undertale */
+.ut-btn {
+  background-color: #000;
+  color: #fff;
+  border: 2px solid #fff;
+  padding: 6px 14px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+.ut-btn:hover, .ut-btn.active {
+  background-color: #fff;
+  color: #000;
+}
+.ut-btn:disabled {
+  border-color: #444;
+  color: #444;
+  cursor: not-allowed;
+}
+
+/* Выпадающие списки */
+.ut-select {
+  background-color: #000;
+  color: #fff;
+  border: 2px solid #fff;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+}
