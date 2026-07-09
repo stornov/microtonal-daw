@@ -21,6 +21,9 @@ export const useAppStore = create((set, get) => ({
   tempo: 120,
   currentScale: 'chromatic', 
 
+  isExporting: false,
+  setIsExporting: (val) => set({ isExporting: val }),
+
   tracks: DEFAULT_TRACKS,
   instruments: DEFAULT_INSTRUMENTS,
   currentInstrumentId: 'triangle', 
@@ -29,13 +32,11 @@ export const useAppStore = create((set, get) => ({
   activeBlockId: null,
   currentPlayheadBeat: -1,
   liveActiveNotes: {}, 
-
   showCircleLabels: true,
-  setShowCircleLabels: (val) => set({ showCircleLabels: val }),
-
   hexOctaveShift: 0, 
-  setHexOctaveShift: (val) => set({ hexOctaveShift: Number(val) }),
 
+  setHexOctaveShift: (val) => set({ hexOctaveShift: Number(val) }),
+  setShowCircleLabels: (val) => set({ showCircleLabels: val }),
   setTempo: (t) => set({ tempo: Number(t) }),
   setLiveActiveNotes: (notes) => set({ liveActiveNotes: notes }),
   setCurrentPlayheadBeat: (beat) => set({ currentPlayheadBeat: beat }),
@@ -54,7 +55,8 @@ export const useAppStore = create((set, get) => ({
     currentPlayheadBeat: -1,
     liveActiveNotes: {},
     hexOctaveShift: 0,
-    showCircleLabels: true
+    showCircleLabels: true,
+    isExporting: false
   }),
 
   loadProject: (projectData) => set({
@@ -70,7 +72,8 @@ export const useAppStore = create((set, get) => ({
     currentPlayheadBeat: -1,
     liveActiveNotes: {},
     hexOctaveShift: projectData.hexOctaveShift ?? 0,
-    showCircleLabels: projectData.showCircleLabels ?? true
+    showCircleLabels: projectData.showCircleLabels ?? true,
+    isExporting: false
   }),
 
   setActiveBlockId: (id) => set((state) => {

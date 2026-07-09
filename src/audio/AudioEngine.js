@@ -11,7 +11,7 @@ class AudioEngine {
     this.volumeNode = new Tone.Volume(0);
     this.limiter = new Tone.Limiter(-1); 
 
-    this.analyser.connect(this.volumeNode); 
+    this.analyser.connect(this.volumeNode);
     this.volumeNode.connect(this.limiter);
     this.limiter.toDestination();
 
@@ -99,7 +99,7 @@ class AudioEngine {
 
   stopAllImmediate() {
     Tone.Transport.stop(); 
-    Tone.Transport.cancel(0);
+    Tone.Transport.cancel(0); 
     
     Object.values(this.synths).forEach(synth => {
       synth.releaseAll();
@@ -131,7 +131,6 @@ class AudioEngine {
   async syncTimeline() {
     if (!this.isInitialized) return;
     const currentTicks = Tone.Transport.ticks;
-    
     Tone.Transport.cancel(0);
 
     const state = useAppStore.getState();
@@ -155,9 +154,7 @@ class AudioEngine {
         if (synth && block.notes.length > 0) {
           const freqs = block.notes.map(n => getFrequency(n, currentEdo, blockBaseFreq));
           const durSec = block.durationBeats * (60 / useAppStore.getState().tempo);
-          
           const vel = (block.velocity !== undefined ? block.velocity : 100) / 127;
-          
           synth.triggerAttackRelease(freqs, durSec, time, vel);
         }
       }, `${startTicks}i`);
@@ -198,7 +195,6 @@ class AudioEngine {
           const freqs = block.notes.map(n => getFrequency(n, currentEdo, blockBaseFreq));
           const remainingBeats = endBeat - currentBeat;
           const remainingSeconds = remainingBeats * (60 / state.tempo);
-          
           const vel = (block.velocity !== undefined ? block.velocity : 100) / 127;
 
           synth.triggerAttackRelease(freqs, remainingSeconds, Tone.now(), vel);

@@ -8,11 +8,16 @@ import HexGrid from './components/HexGrid';
 import MidiController from './components/MidiController';
 import SynthControls from './components/SynthControls';
 import Timeline from './components/Timeline';
+import { bufferToWav, getFrequency } from './utils/mathUtils';
+import * as Tone from 'tone';
 
 function App() {
-  const { edo, setEdo, volume, setVolume, currentScale, setCurrentScale, tempo, instruments, blocks, isPlaying, newProject, loadProject, showCircleLabels, setShowCircleLabels } = useAppStore();
+  const { edo, setEdo, volume, setVolume, currentScale, setCurrentScale, tempo, instruments, blocks, isPlaying, newProject, loadProject, showCircleLabels, setShowCircleLabels, isExporting, setIsExporting } = useAppStore();
   const fileInputRef = useRef(null);
   const [showHelp, setShowHelp] = useState(false);
+  
+  const [showExportModal, setShowExportSettingsOpen] = useState(false);
+  const [exportMode, setExportMode] = useState('leave'); 
 
   useEffect(() => {
     const preventContextMenu = (e) => e.preventDefault();
@@ -91,59 +96,204 @@ function App() {
     }
   };
 
+  const getExportDurations = () => {
+    let maxBeats = 4.0;
+    blocks.forEach(b => {
+      const end = b.startBeat + b.durationBeats;
+      if (end > maxBeats) maxBeats = end;
+    });
+
+    const beatDurationSec = 60 / tempo;
+    const totalDurationSec = maxBeats * beatDurationSec;
+
+    let maxTailSeconds = 1.0;
+    const usedInstrumentIds = [...new Set(blocks.map(b => b.instrumentId))];
+    usedInstrumentIds.forEach(id => {
+      const inst = instruments.find(i => i.id === id);
+      if (inst) {
+        const releaseSec = inst.r_disabled ? 0.1 : (inst.release / 1000);
+        const reverbTail = inst.reverb ? (inst.reverb * 4.0) : 0;
+        const delayTail = inst.delay ? (inst.delay * 3.0) : 0;
+        const instTotalTail = releaseSec + reverbTail + delayTail;
+        if (instTotalTail > maxTailSeconds) {
+          maxTailSeconds = instTotalTail;
+        }
+      }
+    });
+
+    const tailDurationSec = Math.max(0.5, Math.min(6.0, maxTailSeconds));
+    return {
+      timelineSec: totalDurationSec,
+      tailSec: tailDurationSec
+    };
+  };
+
+  const trimSilence = (audioBuffer) => {
+    const numChannels = audioBuffer.numberOfChannels;
+    const length = audioBuffer.length;
+    const sampleRate = audioBuffer.sampleRate;
+    let endFrame = length - 1;
+    const threshold = 0.00005; 
+
+    for (let i = length - 1; i >= 0; i--) {
+      let hasSignal = false;
+      for (let channel = 0; channel < numChannels; channel++) {
+        const data = audioBuffer.getChannelData(channel);
+        if (Math.abs(data[i]) > threshold) {
+          hasSignal = true;
+          break;
+        }
+      }
+      if (hasSignal) {
+        endFrame = i;
+        break;
+      }
+    }
+
+    if (endFrame === length - 1) return audioBuffer;
+
+    const marginFrames = Math.floor(sampleRate * 0.1); 
+    const finalEndFrame = Math.min(length, endFrame + marginFrames);
+
+    const croppedBuffer = Tone.context.createBuffer(
+      numChannels,
+      finalEndFrame,
+      sampleRate
+    );
+
+    for (let channel = 0; channel < numChannels; channel++) {
+      const srcData = audioBuffer.getChannelData(channel);
+      const dstData = croppedBuffer.getChannelData(channel);
+      for (let i = 0; i < finalEndFrame; i++) {
+        dstData[i] = srcData[i];
+      }
+    }
+
+    return croppedBuffer;
+  };
+
+  const handleExecuteExport = async () => {
+    setShowExportSettingsOpen(false);
+    await engine.init();
+    setIsExporting(true);
+
+    const { timelineSec } = getExportDurations();
+    const renderDurationSec = exportMode === 'leave' ? (timelineSec + 6.0) : timelineSec;
+
+    const beatDurationSec = 60 / tempo;
+    const currentEdo = edo;
+    const currentBaseFreq = useAppStore.getState().baseFreq;
+
+    try {
+      let buffer = await Tone.Offline(async (context) => {
+        const limiter = new Tone.Limiter(-1).toDestination();
+        const offlineSynths = {};
+
+        for (const inst of instruments) {
+          const synth = new Tone.PolySynth(Tone.Synth, { volume: -15 });
+          const delay = new Tone.FeedbackDelay("8n", 0.4);
+          const reverb = new Tone.Freeverb({ roomSize: 0.6, dampening: 2000 });
+
+          synth.chain(delay, reverb, limiter);
+
+          const attackSec = inst.a_disabled ? 0.01 : inst.attack / 1000;
+          const decaySec = inst.d_disabled ? 0.1 : inst.decay / 1000;
+          const sustainVal = inst.s_disabled ? 1.0 : inst.sustain / 127;
+          const releaseSec = inst.r_disabled ? 0.1 : inst.release / 1000;
+
+          synth.set({
+            oscillator: { type: inst.waveType },
+            envelope: { attack: attackSec, decay: decaySec, sustain: sustainVal, release: releaseSec }
+          });
+
+          reverb.wet.value = inst.reverb ?? 0.2;
+          delay.wet.value = inst.delay ?? 0.1;
+
+          offlineSynths[inst.id] = synth;
+        }
+
+        blocks.forEach((block) => {
+          const startSeconds = block.startBeat * beatDurationSec;
+          const durSeconds = block.durationBeats * beatDurationSec;
+          const synth = offlineSynths[block.instrumentId];
+
+          if (synth && block.notes.length > 0) {
+            const blockBaseFreq = block.baseFreq || 261.63;
+            const freqs = block.notes.map(n => getFrequency(n, currentEdo, blockBaseFreq));
+            const vel = (block.velocity !== undefined ? block.velocity : 100) / 127;
+            
+            synth.triggerAttackRelease(freqs, durSeconds, startSeconds, vel);
+          }
+        });
+
+      }, renderDurationSec);
+
+      if (exportMode === 'leave') {
+        buffer = trimSilence(buffer);
+      }
+
+      const wavBlob = bufferToWav(buffer);
+      const url = URL.createObjectURL(wavBlob);
+      const anchor = document.createElement("a");
+      anchor.download = `microtonal_render_${exportMode === 'leave' ? 'full' : 'loop'}.wav`;
+      anchor.href = url;
+      anchor.click();
+      URL.revokeObjectURL(url);
+
+    } catch (err) {
+      console.error(err);
+      alert("RENDER FAILED: " + err.message);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const { timelineSec, tailSec } = getExportDurations();
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#000', padding: '10px', overflow: 'hidden' }}>
+    <div className="daw-app-container">
       
       <KeyboardController />
 
-      <div className="daw-header-toolbar">
+      <div className="daw-header-toolbar" style={{ display: 'grid', gridTemplateColumns: '1.2fr auto 1.3fr', alignItems: 'center', border: '2px solid #fff', padding: '10px 20px', marginBottom: '10px', flexShrink: 0, gap: '20px' }}>
         
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: '16px', letterSpacing: '1px' }}>MICROTONAL_DAW</h1>
-            <div style={{ marginTop: '2px' }}><MidiController /></div>
-          </div>
-          
-          <div style={{ display: 'flex', gap: '6px', borderLeft: '1px solid #333', paddingLeft: '15px' }}>
-            <button className="ut-btn" onClick={handleNewProject}>NEW</button>
-            <button className="ut-btn" onClick={handleSaveProject} style={{ borderColor: '#59DC90', color: '#59DC90', padding: '4px 10px', fontSize: '10px' }}>SAVE</button>
-            <button className="ut-btn" onClick={() => fileInputRef.current?.click()} style={{ borderColor: '#7FFDEB', color: '#7FFDEB', padding: '4px 10px', fontSize: '10px' }}>LOAD</button>
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleLoadProject} 
-              accept=".json" 
-              style={{ display: 'none' }} 
-            />
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <h1 style={{ margin: 0, fontSize: '18px', letterSpacing: '2px', fontWeight: 'bold' }}>MICROTONAL_DAW</h1>
+          <MidiController />
         </div>
         
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-
-          <button 
-            className="ut-btn"
-            onClick={() => setShowHelp(true)}
-            style={{ borderColor: '#FFCE32', color: '#ffce32', padding: '3px 12px', fontSize: '9px' }}
-          >
-            [ HELP / INFO ]
-          </button>
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+          <button className="ut-btn" style={{ fontSize: '11px', padding: '5px 12px' }} onClick={handleNewProject}>NEW</button>
+          <button className="ut-btn" style={{ fontSize: '11px', padding: '5px 12px', borderColor: '#ffce32', color: '#ffce32' }} onClick={handleSaveProject}>SAVE JSON</button>
+          <button className="ut-btn" style={{ fontSize: '11px', padding: '5px 12px', borderColor: '#7FFDEB', color: '#7FFDEB' }} onClick={() => fileInputRef.current?.click()}>LOAD JSON</button>
+          <button className="ut-btn" style={{ fontSize: '11px', padding: '5px 14px', borderColor: '#59DC90', color: '#59DC90' }} onClick={() => setShowExportSettingsOpen(true)}>💾 RENDER WAV</button>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleLoadProject} 
+            accept=".json" 
+            style={{ display: 'none' }} 
+          />
+        </div>
+        
+        <div style={{ display: 'flex', gap: '20px', alignItems: 'center', justifyContent: 'flex-end' }}>
 
           <button 
             className={`ut-btn ${showCircleLabels ? 'active' : ''}`}
             onClick={() => setShowCircleLabels(!showCircleLabels)}
-            style={{ padding: '3px 8px', fontSize: '9px', borderColor: '#7FFDEB', color: showCircleLabels ? '#000' : '#7FFDEB' }}
+            style={{ padding: '5px 10px', fontSize: '10px', borderColor: '#7FFDEB', color: showCircleLabels ? '#000' : '#7FFDEB' }}
           >
             LABELS: {showCircleLabels ? 'ON' : 'OFF'}
           </button>
 
-          <div style={{ display: 'flex', flexDirection: 'column', width: '70px' }}>
-            <label style={{ fontSize: '9px', color: '#888', marginBottom: '1px' }}>EDO: {edo}</label>
+          <div style={{ display: 'flex', flexDirection: 'column', width: '80px' }}>
+            <label style={{ fontSize: '9px', color: '#888', marginBottom: '2px' }}>EDO: {edo}</label>
             <input type="range" min="5" max="72" value={edo} onChange={(e) => setEdo(Number(e.target.value))} style={{ accentColor: '#fff' }} />
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <label style={{ fontSize: '11px', color: '#888' }}>SCALE:</label>
-            <select className="ut-select" value={currentScale} onChange={(e) => setCurrentScale(e.target.value)}>
+            <label style={{ fontSize: '9px', color: '#888' }}>SCALE:</label>
+            <select className="ut-select" style={{ fontSize: '11px', padding: '2px 6px' }} value={currentScale} onChange={(e) => setCurrentScale(e.target.value)}>
               <option value="chromatic">CHROMATIC</option>
               <option value="major">MAJOR</option>
               <option value="minor">MINOR</option>
@@ -152,8 +302,8 @@ function App() {
             </select>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', width: '60px' }}>
-            <label style={{ fontSize: '9px', color: '#888', marginBottom: '1px' }}>VOLUME</label>
+          <div style={{ display: 'flex', flexDirection: 'column', width: '70px' }}>
+            <label style={{ fontSize: '9px', color: '#888', marginBottom: '2px' }}>MASTER VOL</label>
             <input type="range" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(Number(e.target.value))} style={{ accentColor: '#fff' }} />
           </div>
           
@@ -242,6 +392,74 @@ function App() {
               </div>
 
             </div>
+          </div>
+        </div>
+      )}
+
+      {showExportModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 99999, fontFamily: 'monospace' }}>
+          <div style={{ border: '3px solid #fff', padding: '35px', backgroundColor: '#000', maxWidth: '650px', width: '90%', color: '#fff' }}>
+            <h2 style={{ fontSize: '20px', color: '#ffce32', borderBottom: '2px solid #fff', paddingBottom: '12px', margin: '0 0 20px 0', letterSpacing: '1px' }}>[ WAV EXPORT CONTROL ]</h2>
+            
+            <p style={{ fontSize: '14px', color: '#ccc', margin: '0 0 20px 0', lineHeight: '1.6' }}>
+              Your project duration is <span style={{ color: '#fff', fontWeight: 'bold' }}>{timelineSec.toFixed(2)}s</span> based on {tempo} BPM. Choose how the DAW should handle the rendering process:
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '25px' }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '15px', cursor: 'pointer', fontSize: '14px' }}>
+                <input 
+                  type="radio" 
+                  name="exportMode" 
+                  value="leave" 
+                  checked={exportMode === 'leave'} 
+                  onChange={() => setExportMode('leave')} 
+                  style={{ accentColor: '#ffce32', cursor: 'pointer', transform: 'scale(1.2)', marginTop: '4px' }}
+                />
+                <div>
+                  <span style={{ fontWeight: 'bold', color: '#59DC90', fontSize: '16px' }}>LEAVE REMAINDER (Lush Tail)</span>
+                  <div style={{ fontSize: '12px', color: '#aaa', marginTop: '5px', lineHeight: '1.4' }}>
+                    Renders the full track. The system dynamically crops trailing silent space, preserving the exact duration of the fade-out.
+                  </div>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '15px', cursor: 'pointer', fontSize: '14px', borderTop: '2px solid #222', paddingTop: '15px' }}>
+                <input 
+                  type="radio" 
+                  name="exportMode" 
+                  value="cut" 
+                  checked={exportMode === 'cut'} 
+                  onChange={() => setExportMode('cut')} 
+                  style={{ accentColor: '#ffce32', cursor: 'pointer', transform: 'scale(1.2)', marginTop: '4px' }}
+                />
+                <div>
+                  <span style={{ fontWeight: 'bold', color: '#ff4444', fontSize: '16px' }}>CUT REMAINDER (Seamless Loop)</span>
+                  <div style={{ fontSize: '12px', color: '#aaa', marginTop: '5px', lineHeight: '1.4' }}>
+                    Cuts the render exactly at {timelineSec.toFixed(2)}s. Perfect for loop-samples, rhythm loops, and repeating patterns.
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end' }}>
+              <button className="ut-btn" style={{ borderColor: '#59DC90', color: '#59DC90', fontSize: '13px', padding: '8px 20px' }} onClick={handleExecuteExport}>START RENDER</button>
+              <button className="ut-btn" style={{ borderColor: '#888', color: '#888', fontSize: '13px', padding: '8px 20px' }} onClick={() => setShowExportSettingsOpen(false)}>CANCEL</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isExporting && (
+        <div style={{ 
+          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', 
+          backgroundColor: 'rgba(0, 0, 0, 0.95)', display: 'flex', justifyContent: 'center', 
+          alignItems: 'center', zIndex: 99999, fontFamily: 'monospace' 
+        }}>
+          <div style={{ border: '3px solid #fff', padding: '50px', textAlign: 'center', backgroundColor: '#000', maxWidth: '600px', width: '90%' }}>
+            <h2 style={{ fontSize: '22px', color: '#ffce32', margin: '0 0 20px 0', letterSpacing: '1px' }}>[ RENDERING MASTER STEMS ]</h2>
+            <p style={{ fontSize: '14px', color: '#ccc', lineHeight: '1.6', margin: 0 }}>
+              COMPUTING HIGH-FIDELITY OFFLINE BUFFER IN {exportMode.toUpperCase()} MODE... PLEASE WAIT...
+            </p>
           </div>
         </div>
       )}

@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { engine } from '../audio/AudioEngine';
 import { formatBeatsToFraction } from '../utils/mathUtils';
@@ -74,14 +74,12 @@ const Timeline = () => {
   useEffect(() => {
     if (isPlaying && timelineScrollRef.current && currentPlayheadBeat >= 0) {
       const container = timelineScrollRef.current;
-      const playheadX = 120 + currentPlayheadBeat * zoomX;
-      
+      const playheadX = 120 + currentPlayheadBeat * zoomX; 
       const rightBoundary = container.scrollLeft + container.clientWidth - 80;
       
       if (playheadX > rightBoundary) {
         container.scrollLeft = playheadX - 150;
       }
-      
       if (currentPlayheadBeat < 0.1) {
         container.scrollLeft = 0;
       }
