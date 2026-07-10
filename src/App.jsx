@@ -11,36 +11,175 @@ import Timeline from './components/Timeline';
 import { bufferToWav, getFrequency } from './utils/mathUtils';
 import * as Tone from 'tone';
 
-const compressProject = (proj) => {
-  const projectData = {
-    edo: proj.edo,
-    tempo: proj.tempo,
-    cl: proj.showCircleLabels,
-    z: proj.circleZoom,
-    os: proj.hexOctaveShift,
-    tr: proj.tracks.map(t => ({ i: t.id, n: t.name })),
-    b: proj.blocks.map(b => ({
-      i: b.id, t: b.trackId, s: b.startBeat, d: b.durationBeats,
-      in: b.instrumentId, f: b.baseFreq, v: b.velocity, n: b.notes
-    })),
-    ins: proj.instruments.map(i => ({
-      i: i.id, n: i.name, c: i.color, w: i.waveType, a: i.attack,
-      de: i.decay, su: i.sustain, r: i.release, re: i.reverb, dy: i.delay,
-      ad: i.a_disabled, dd: i.d_disabled, sd: i.s_disabled, rd: i.r_disabled
-    }))
-  };
-  
-  const jsonString = JSON.stringify(projectData);
-  const bytes = new TextEncoder().encode(jsonString);
-  const binString = String.fromCodePoint(...bytes);
-  return btoa(binString);
+const compressProject = async (proj) => {
+  const trackIds = proj.tracks.map(t => t.id);
+  const instIds = ['triangle', 'saw', 'square', 'sine'];
+
+  const trackNames = proj.tracks.map(t => t.name);
+
+  const blocksArray = proj.blocks.map(b => {
+    const tIdx = trackIds.indexOf(b.trackId);
+    const iIdx = instIds.indexOf(b.instrumentId);
+    return [
+      tIdx !== -1 ? tIdx : 0,
+      b.startBeat,
+      b.durationBeats,
+      iIdx !== -1 ? iIdx : 0,
+      b.notes,
+      Math.round(b.baseFreq * 100) / 100 === 261.63 ? 0 : Number(b.baseFreq.toFixed(2)),
+      b.velocity === 100 ? 0 : b.velocity
+    ];
+  });
+
+  const instParams = proj.instruments.map(i => [
+    i.attack,
+    i.decay,
+    i.sustain,
+    i.release,
+    Number(i.reverb.toFixed(2)),
+    Number(i.delay.toFixed(2))
+  ]);
+
+  const compactData = [
+    proj.edo,
+    proj.tempo,
+    proj.showCircleLabels ? 1 : 0,
+    Number(proj.circleZoom.toFixed(1)),
+    proj.hexOctaveShift,
+    trackNames,
+    blocksArray,
+    instParams
+  ];
+
+  const jsonString = JSON.stringify(compactData);
+
+  const stream = new Blob([jsonString]).stream();
+  const compressedStream = stream.pipeThrough(new CompressionStream('deflate-raw'));
+  const buffer = await new Response(compressedStream).arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  const base64 = btoa(binary)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, ''); 
+
+  return base64;
 };
 
-const decompressProject = (compressedData) => {
-  const binString = atob(compressedData);
-  const bytes = Uint8Array.from(binString, (m) => m.codePointAt(0));
-  const jsonString = new TextDecoder().decode(bytes);
-  return JSON.parse(jsonString);
+const decompressProject = async (compressedData) => {
+  try {
+    let b64 = compressedData.replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+    const stream = new Blob([bytes]).stream();
+    const decompressedStream = stream.pipeThrough(new DecompressionStream('deflate-raw'));
+    const jsonString = await new Response(decompressedStream).text();
+    const raw = JSON.parse(jsonString);
+
+    if (Array.isArray(raw)) {
+      const [edo, tempo, showCircleLabels, circleZoom, hexOctaveShift, trackNames, blocksArray, instParams] = raw;
+
+      const tracks = trackNames.map((name, idx) => ({
+        id: `track_${idx + 1}`,
+        name: name
+      }));
+
+      const instIds = ['triangle', 'saw', 'square', 'sine'];
+      const instNames = ['TRIANGLE', 'SAW', 'SQUARE', 'SINE'];
+      const instColors = ['#59DC90', '#ED6ED8', '#7FFDEB', '#FFCE32'];
+      const waveTypes = ['triangle', 'sawtooth', 'square', 'sine'];
+
+      const instruments = instIds.map((id, idx) => {
+        const params = instParams[idx] || [100, 300, 90, 1500, 0.2, 0.1];
+        return {
+          id: id,
+          name: instNames[idx],
+          color: instColors[idx],
+          waveType: waveTypes[idx],
+          attack: params[0],
+          decay: params[1],
+          sustain: params[2],
+          release: params[3],
+          reverb: params[4],
+          delay: params[5],
+          a_disabled: false,
+          d_disabled: false,
+          s_disabled: false,
+          r_disabled: false
+        };
+      });
+
+      const blocks = blocksArray.map((b, idx) => {
+        const [tIdx, startBeat, durationBeats, iIdx, notes, baseFreq, velocity] = b;
+        return {
+          id: `block_${Date.now()}_${idx}`,
+          trackId: tracks[tIdx]?.id || tracks[0]?.id || 'track_1',
+          startBeat: startBeat,
+          durationBeats: durationBeats,
+          instrumentId: instIds[iIdx] || 'triangle',
+          baseFreq: baseFreq === 0 ? 261.63 : baseFreq,
+          velocity: velocity === 0 ? 100 : velocity,
+          notes: notes
+        };
+      });
+
+      return {
+        edo,
+        tempo,
+        showCircleLabels: showCircleLabels === 1,
+        circleZoom: circleZoom || 1.0,
+        hexOctaveShift: hexOctaveShift || 0,
+        tracks,
+        blocks,
+        instruments
+      };
+    }
+
+    return {
+      edo: raw.edo || raw.e,
+      tempo: raw.tempo || raw.t,
+      showCircleLabels: (raw.showCircleLabels ?? raw.cl) === 1 || (raw.showCircleLabels ?? raw.cl) === true,
+      circleZoom: raw.circleZoom ?? raw.z ?? 1.0,
+      hexOctaveShift: raw.hexOctaveShift ?? raw.os ?? 0,
+      tracks: (raw.tracks ?? raw.tr)?.map(t => ({ id: t.id || t.i, name: t.name || t.n })),
+      blocks: (raw.blocks ?? raw.b)?.map(b => ({
+        id: b.id || b.i, 
+        trackId: b.trackId || b.t, 
+        startBeat: b.startBeat ?? b.s, 
+        durationBeats: b.durationBeats ?? b.d,
+        instrumentId: b.instrumentId || b.in, 
+        baseFreq: b.baseFreq || b.f, 
+        velocity: b.velocity ?? b.v, 
+        notes: b.notes || b.n
+      })),
+      instruments: (raw.instruments ?? raw.ins)?.map(i => ({
+        id: i.id || i.i, 
+        name: i.name || i.n, 
+        color: i.color || i.c, 
+        waveType: i.waveType || i.w, 
+        attack: i.attack || i.a,
+        decay: i.decay || i.de, 
+        sustain: i.sustain || i.su, 
+        release: i.release || i.r, 
+        reverb: i.reverb ?? i.re, 
+        delay: i.delay ?? i.dy,
+        a_disabled: i.a_disabled || i.ad === 1, 
+        d_disabled: i.d_disabled || i.dd === 1, 
+        s_disabled: i.s_disabled || i.sd === 1, 
+        r_disabled: i.r_disabled || i.rd === 1
+      }))
+    };
+
+  } catch (err) {
+    console.error("Decompression failed:", err);
+    throw err;
+  }
 };
 
 function App() {
@@ -90,10 +229,11 @@ function App() {
       if (hash && hash.startsWith('#project=')) {
         try {
           const base64Data = hash.substring('#project='.length);
-          const parsedData = decompressProject(base64Data);
+          const parsedData = await decompressProject(base64Data);
           loadProject(parsedData);
+          window.history.replaceState("", document.title, window.location.pathname + window.location.search);
         } catch (err) {
-          console.error(err);
+          console.error("Failed to load project from URL:", err);
         }
       }
     };
@@ -167,7 +307,7 @@ function App() {
     }
   };
 
-  const handleShareProject = () => {
+  const handleShareProject = async () => {
     const state = useAppStore.getState();
     const projectData = {
       edo: state.edo,
@@ -180,8 +320,9 @@ function App() {
       hexOctaveShift: state.hexOctaveShift
     };
 
+    setShareStatus('COMPRESSING...'); 
     try {
-      const compressedData = compressProject(projectData);
+      const compressedData = await compressProject(projectData);
       const shareUrl = `${window.location.origin}${window.location.pathname}#project=${compressedData}`;
       
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -193,6 +334,7 @@ function App() {
       }
     } catch (err) {
       alert("Failed to build link");
+      setShareStatus('🔗 SHARE');
     }
   };
 
@@ -208,6 +350,7 @@ function App() {
       triggerSuccess();
     } catch (err) {
       alert("Please copy link manually: " + text);
+      setShareStatus('🔗 SHARE');
     }
     document.body.removeChild(textArea);
   };
@@ -403,10 +546,7 @@ function App() {
           <button className="ut-btn" style={{ fontSize: '11px', padding: '5px 12px', borderColor: '#ffce32', color: '#ffce32' }} onClick={handleSaveProject}>SAVE JSON</button>
           <button className="ut-btn" style={{ fontSize: '11px', padding: '5px 12px', borderColor: '#7FFDEB', color: '#7FFDEB' }} onClick={() => fileInputRef.current?.click()}>LOAD JSON</button>
           <button className="ut-btn" style={{ fontSize: '11px', padding: '5px 14px', borderColor: '#59DC90', color: '#59DC90' }} onClick={() => setShowExportSettingsOpen(true)}>💾 RENDER WAV</button>
-          
-          {/* КНОПКА ПОМОЩИ ЗДЕСЬ */}
           <button className="ut-btn" style={{ fontSize: '11px', padding: '5px 12px', borderColor: '#ffaa00', color: '#ffaa00' }} onClick={() => setShowHelp(true)}>[?] HELP</button>
-          
           <button className="ut-btn" style={{ fontSize: '11px', padding: '5px 12px', borderColor: '#ffce32', color: '#ffce32' }} onClick={handleShareProject}>{shareStatus}</button>
 
           <input 
@@ -469,7 +609,6 @@ function App() {
         <Timeline />
       </div>
 
-      {/* ПОЛНОЦЕННОЕ HELP-МЕНЮ */}
       {showHelp && (
         <div 
           onClick={() => setShowHelp(false)}
@@ -482,52 +621,52 @@ function App() {
           <div 
             onClick={(e) => e.stopPropagation()}
             style={{
-              border: '3px solid #fff', backgroundColor: '#000', padding: '25px',
-              maxWidth: '650px', width: '100%', maxHeight: '85vh', overflowY: 'auto',
+              border: '3px solid #fff', backgroundColor: '#000', padding: '40px',
+              maxWidth: '850px', width: '100%', maxHeight: '90vh', overflowY: 'auto',
               fontFamily: 'monospace', color: '#fff'
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #fff', paddingBottom: '10px', marginBottom: '15px' }}>
-              <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#FFCE32' }}>[ MICROTONAL_DAW HELP CENTER ]</span>
-              <button className="ut-btn" style={{ padding: '2px 8px', fontSize: '9px' }} onClick={() => setShowHelp(false)}>X CLOSE</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #fff', paddingBottom: '15px', marginBottom: '25px' }}>
+              <span style={{ fontSize: '22px', fontWeight: 'bold', color: '#FFCE32', letterSpacing: '1px' }}>[ MICROTONAL_DAW HELP CENTER ]</span>
+              <button className="ut-btn" style={{ padding: '6px 14px', fontSize: '11px' }} onClick={() => setShowHelp(false)}>X CLOSE</button>
             </div>
 
-            <div style={{ fontSize: '11px', lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <div style={{ fontSize: '14px', lineHeight: '1.8', display: 'flex', flexDirection: 'column', gap: '25px' }}>
               
               <div>
-                <span style={{ color: '#59DC90', fontWeight: 'bold' }}>◆ ТАЙМЛАЙН И ПОТОКИ (STREAMS):</span>
-                <ul style={{ margin: '5px 0 0 20px', padding: 0 }}>
-                  <li><b>Клик левой кнопкой на пустом месте:</b> Создает новый кадр (cadre) в месте клика с привязкой к сетке.</li>
-                  <li><b>Клик левой кнопкой на блок:</b> Выделяет кадр для редактирования нот и ADSR.</li>
-                  <li><b>Клик по пустому месту таймлайна (когда выбран кадр):</b> Снимает фокус / сбрасывает выделение.</li>
-                  <li><b>Зажать и тащить блок:</b> Свободное перемещение во времени и между дорожками (смена инструментов!).</li>
-                  <li><b>Потянуть правый край блока:</b> Изменение длительности кадра с шагом привязки до 1/32 доли.</li>
-                  <li><b>Клик правой кнопкой мыши по блоку:</b> Мгновенное удаление кадра.</li>
+                <span style={{ color: '#59DC90', fontWeight: 'bold', fontSize: '16px', borderBottom: '1px solid #59DC90', paddingBottom: '2px' }}>◆ ТАЙМЛАЙН И ПОТОКИ (STREAMS):</span>
+                <ul style={{ margin: '10px 0 0 25px', padding: 0 }}>
+                  <li style={{ marginBottom: '8px' }}><b>Клик левой кнопкой на пустом месте:</b> Создает новый кадр (cadre) в месте клика с привязкой к сетке.</li>
+                  <li style={{ marginBottom: '8px' }}><b>Клик левой кнопкой на блок:</b> Выделяет кадр для редактирования нот и ADSR.</li>
+                  <li style={{ marginBottom: '8px' }}><b>Клик по пустому месту таймлайна (когда выбран кадр):</b> Снимает фокус / сбрасывает выделение.</li>
+                  <li style={{ marginBottom: '8px' }}><b>Зажать и тащить блок:</b> Свободное перемещение во времени и между дорожками (смена инструментов!).</li>
+                  <li style={{ marginBottom: '8px' }}><b>Потянуть правый край блока:</b> Изменение длительности кадра с шагом привязки до 1/32 доли.</li>
+                  <li style={{ marginBottom: '8px' }}><b>Клик правой кнопкой мыши по блоку:</b> Мгновенное удаление кадра.</li>
                 </ul>
               </div>
 
               <div>
-                <span style={{ color: '#ED6ED8', fontWeight: 'bold' }}>◆ ГЕОМЕТРИЧЕСКИЙ КРУГ И СЕТКА СОТ (HEXES):</span>
-                <ul style={{ margin: '5px 0 0 20px', padding: 0 }}>
-                  <li><b>Левый клик по кругу или сотам:</b> Добавляет/удаляет ноту в выбранный кадр (рисует неоновые полигоны).</li>
-                  <li><b>Правый клик по кругу или сотам:</b> Назначает нажатую ноту тональным центром (Root) выбранного кадра.</li>
-                  <li><b>11 орбит круга:</b> Представляют собой концентрический многооктавный радар (от Octave 0 до Octave 10).</li>
-                  <li><b>Октавный сдвиг (OCT SHIFT):</b> Сдвигает диапазон клавиатуры сот от суб-басов C0 до писков B10.</li>
+                <span style={{ color: '#ED6ED8', fontWeight: 'bold', fontSize: '16px', borderBottom: '1px solid #ED6ED8', paddingBottom: '2px' }}>◆ ГЕОМЕТРИЧЕСКИЙ КРУГ И СЕТКА СОТ (HEXES):</span>
+                <ul style={{ margin: '10px 0 0 25px', padding: 0 }}>
+                  <li style={{ marginBottom: '8px' }}><b>Левый клик по кругу или сотам:</b> Добавляет/удаляет ноту в выбранный кадр (рисует неоновые полигоны).</li>
+                  <li style={{ marginBottom: '8px' }}><b>Правый клик по кругу или сотам:</b> Назначает нажатую ноту тональным центром (Root) выбранного кадра.</li>
+                  <li style={{ marginBottom: '8px' }}><b>11 орбит круга:</b> Представляют собой концентрический многооктавный радар (от Octave 0 до Octave 10).</li>
+                  <li style={{ marginBottom: '8px' }}><b>Октавный сдвиг (OCT SHIFT):</b> Сдвигает диапазон клавиатуры сот от суб-басов C0 до писков B10.</li>
                 </ul>
               </div>
 
               <div>
-                <span style={{ color: '#7FFDEB', fontWeight: 'bold' }}>◆ ГОРЯЧИЕ КЛАВИШИ (HOTKEYS):</span>
-                <ul style={{ margin: '5px 0 0 20px', padding: 0 }}>
-                  <li><kbd style={{ background: '#222', padding: '1px 4px', border: '1px solid #666' }}>Space</kbd> : Запуск / Пауза воспроизведения.</li>
-                  <li><kbd style={{ background: '#222', padding: '1px 4px', border: '1px solid #666' }}>Esc</kbd> : Быстро снять фокус с кадра.</li>
-                  <li><kbd style={{ background: '#222', padding: '1px 4px', border: '1px solid #666' }}>Ctrl + D</kbd> : Продублировать выделенный кадр встык.</li>
-                  <li><b>Двойной клик на STOP (■):</b> Panic-кнопка. Полный сброс и мгновенная аппаратная тишина.</li>
-                  <li><b>Ряды клавиш ПК (Z X C..., A S D..., Q W E...):</b> Микротональное playable-пианино.</li>
+                <span style={{ color: '#7FFDEB', fontWeight: 'bold', fontSize: '16px', borderBottom: '1px solid #7FFDEB', paddingBottom: '2px' }}>◆ ГОРЯЧИЕ КЛАВИШИ (HOTKEYS):</span>
+                <ul style={{ margin: '10px 0 0 25px', padding: 0 }}>
+                  <li style={{ marginBottom: '8px' }}><kbd style={{ background: '#222', padding: '2px 6px', border: '1px solid #666', borderRadius: '3px' }}>Space</kbd> : Запуск / Пауза воспроизведения.</li>
+                  <li style={{ marginBottom: '8px' }}><kbd style={{ background: '#222', padding: '2px 6px', border: '1px solid #666', borderRadius: '3px' }}>Esc</kbd> : Быстро снять фокус с кадра.</li>
+                  <li style={{ marginBottom: '8px' }}><kbd style={{ background: '#222', padding: '2px 6px', border: '1px solid #666', borderRadius: '3px' }}>Ctrl + D</kbd> : Продублировать выделенный кадр встык.</li>
+                  <li style={{ marginBottom: '8px' }}><b>Двойной клик на STOP (■):</b> Panic-кнопка. Полный сброс и мгновенная аппаратная тишина.</li>
+                  <li style={{ marginBottom: '8px' }}><b>Ряды клавиш ПК (Z X C..., A S D..., Q W E...):</b> Микротональное playable-пианино.</li>
                 </ul>
               </div>
 
-              <div style={{ borderTop: '1px solid #333', paddingTop: '10px', textAlign: 'center', color: '#ffce32' }}>
+              <div style={{ borderTop: '2px dashed #333', paddingTop: '20px', marginTop: '10px', textAlign: 'center', color: '#ffce32', fontWeight: 'bold' }}>
                 [ CLICK ANYWHERE OUTSIDE OR PRESS 'CLOSE' TO GO BACK ]
               </div>
 
@@ -585,21 +724,6 @@ function App() {
               <button className="ut-btn" style={{ borderColor: '#59DC90', color: '#59DC90', fontSize: '13px', padding: '8px 20px' }} onClick={handleExecuteExport}>START RENDER</button>
               <button className="ut-btn" style={{ borderColor: '#888', color: '#888', fontSize: '13px', padding: '8px 20px' }} onClick={() => setShowExportSettingsOpen(false)}>CANCEL</button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {isExporting && (
-        <div style={{ 
-          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', 
-          backgroundColor: 'rgba(0, 0, 0, 0.95)', display: 'flex', justifyContent: 'center', 
-          alignItems: 'center', zIndex: 99999, fontFamily: 'monospace' 
-        }}>
-          <div style={{ border: '3px solid #fff', padding: '50px', textAlign: 'center', backgroundColor: '#000', maxWidth: '600px', width: '90%' }}>
-            <h2 style={{ fontSize: '22px', color: '#ffce32', margin: '0 0 15px 0', letterSpacing: '1px' }}>[ RENDERING MASTER STEMS ]</h2>
-            <p style={{ fontSize: '13px', color: '#ccc', lineHeight: '1.6', margin: 0 }}>
-              COMPUTING HIGH-FIDELITY OFFLINE BUFFER IN {exportMode.toUpperCase()} MODE... PLEASE WAIT...
-            </p>
           </div>
         </div>
       )}
