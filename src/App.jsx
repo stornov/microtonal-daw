@@ -383,7 +383,6 @@ function App() {
         </div>
         
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', alignItems: 'center' }}>
-          
           <select 
             className="ut-select" 
             style={{ borderColor: '#ffce32', color: '#ffce32', fontSize: '11px', padding: '5px' }}
@@ -404,6 +403,10 @@ function App() {
           <button className="ut-btn" style={{ fontSize: '11px', padding: '5px 12px', borderColor: '#ffce32', color: '#ffce32' }} onClick={handleSaveProject}>SAVE JSON</button>
           <button className="ut-btn" style={{ fontSize: '11px', padding: '5px 12px', borderColor: '#7FFDEB', color: '#7FFDEB' }} onClick={() => fileInputRef.current?.click()}>LOAD JSON</button>
           <button className="ut-btn" style={{ fontSize: '11px', padding: '5px 14px', borderColor: '#59DC90', color: '#59DC90' }} onClick={() => setShowExportSettingsOpen(true)}>💾 RENDER WAV</button>
+          
+          {/* КНОПКА ПОМОЩИ ЗДЕСЬ */}
+          <button className="ut-btn" style={{ fontSize: '11px', padding: '5px 12px', borderColor: '#ffaa00', color: '#ffaa00' }} onClick={() => setShowHelp(true)}>[?] HELP</button>
+          
           <button className="ut-btn" style={{ fontSize: '11px', padding: '5px 12px', borderColor: '#ffce32', color: '#ffce32' }} onClick={handleShareProject}>{shareStatus}</button>
 
           <input 
@@ -416,7 +419,6 @@ function App() {
         </div>
         
         <div style={{ display: 'flex', gap: '30px', alignItems: 'center', justifyContent: 'flex-end' }}>
-
           <div style={{ display: 'flex', flexDirection: 'column', width: '120px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
               <label style={{ fontSize: '12px', color: '#888', fontWeight: 'bold' }}>EDO:</label>
@@ -442,28 +444,22 @@ function App() {
             </div>
             <input type="range" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(Number(e.target.value))} style={{ accentColor: '#fff', cursor: 'pointer' }} />
           </div>
-          
         </div>
       </div>
 
       <div className="daw-workspace-upper">
-        
         <div className="daw-circle-box" style={{ display: 'flex', flexDirection: 'column', padding: '10px', justifyContent: 'space-between', alignItems: 'center', overflow: 'hidden' }}>
-          
           <div style={{ flex: 1, width: '100%', minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
             <CircleTuner />
           </div>
-          
           <div className="daw-canvas-faded" style={{ width: '100%', display: 'flex', justifyContent: 'center', flexShrink: 0, borderTop: '1px solid #1a1a1a', paddingTop: '8px' }}>
             <Visualizer />
           </div>
-
         </div>
         
         <div className="daw-hex-box">
           <HexGrid />
         </div>
-
       </div>
 
       <div className="daw-bottom-rack">
@@ -473,6 +469,7 @@ function App() {
         <Timeline />
       </div>
 
+      {/* ПОЛНОЦЕННОЕ HELP-МЕНЮ */}
       {showHelp && (
         <div 
           onClick={() => setShowHelp(false)}
@@ -493,6 +490,47 @@ function App() {
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #fff', paddingBottom: '10px', marginBottom: '15px' }}>
               <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#FFCE32' }}>[ MICROTONAL_DAW HELP CENTER ]</span>
               <button className="ut-btn" style={{ padding: '2px 8px', fontSize: '9px' }} onClick={() => setShowHelp(false)}>X CLOSE</button>
+            </div>
+
+            <div style={{ fontSize: '11px', lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              
+              <div>
+                <span style={{ color: '#59DC90', fontWeight: 'bold' }}>◆ ТАЙМЛАЙН И ПОТОКИ (STREAMS):</span>
+                <ul style={{ margin: '5px 0 0 20px', padding: 0 }}>
+                  <li><b>Клик левой кнопкой на пустом месте:</b> Создает новый кадр (cadre) в месте клика с привязкой к сетке.</li>
+                  <li><b>Клик левой кнопкой на блок:</b> Выделяет кадр для редактирования нот и ADSR.</li>
+                  <li><b>Клик по пустому месту таймлайна (когда выбран кадр):</b> Снимает фокус / сбрасывает выделение.</li>
+                  <li><b>Зажать и тащить блок:</b> Свободное перемещение во времени и между дорожками (смена инструментов!).</li>
+                  <li><b>Потянуть правый край блока:</b> Изменение длительности кадра с шагом привязки до 1/32 доли.</li>
+                  <li><b>Клик правой кнопкой мыши по блоку:</b> Мгновенное удаление кадра.</li>
+                </ul>
+              </div>
+
+              <div>
+                <span style={{ color: '#ED6ED8', fontWeight: 'bold' }}>◆ ГЕОМЕТРИЧЕСКИЙ КРУГ И СЕТКА СОТ (HEXES):</span>
+                <ul style={{ margin: '5px 0 0 20px', padding: 0 }}>
+                  <li><b>Левый клик по кругу или сотам:</b> Добавляет/удаляет ноту в выбранный кадр (рисует неоновые полигоны).</li>
+                  <li><b>Правый клик по кругу или сотам:</b> Назначает нажатую ноту тональным центром (Root) выбранного кадра.</li>
+                  <li><b>11 орбит круга:</b> Представляют собой концентрический многооктавный радар (от Octave 0 до Octave 10).</li>
+                  <li><b>Октавный сдвиг (OCT SHIFT):</b> Сдвигает диапазон клавиатуры сот от суб-басов C0 до писков B10.</li>
+                </ul>
+              </div>
+
+              <div>
+                <span style={{ color: '#7FFDEB', fontWeight: 'bold' }}>◆ ГОРЯЧИЕ КЛАВИШИ (HOTKEYS):</span>
+                <ul style={{ margin: '5px 0 0 20px', padding: 0 }}>
+                  <li><kbd style={{ background: '#222', padding: '1px 4px', border: '1px solid #666' }}>Space</kbd> : Запуск / Пауза воспроизведения.</li>
+                  <li><kbd style={{ background: '#222', padding: '1px 4px', border: '1px solid #666' }}>Esc</kbd> : Быстро снять фокус с кадра.</li>
+                  <li><kbd style={{ background: '#222', padding: '1px 4px', border: '1px solid #666' }}>Ctrl + D</kbd> : Продублировать выделенный кадр встык.</li>
+                  <li><b>Двойной клик на STOP (■):</b> Panic-кнопка. Полный сброс и мгновенная аппаратная тишина.</li>
+                  <li><b>Ряды клавиш ПК (Z X C..., A S D..., Q W E...):</b> Микротональное playable-пианино.</li>
+                </ul>
+              </div>
+
+              <div style={{ borderTop: '1px solid #333', paddingTop: '10px', textAlign: 'center', color: '#ffce32' }}>
+                [ CLICK ANYWHERE OUTSIDE OR PRESS 'CLOSE' TO GO BACK ]
+              </div>
+
             </div>
           </div>
         </div>
@@ -547,6 +585,21 @@ function App() {
               <button className="ut-btn" style={{ borderColor: '#59DC90', color: '#59DC90', fontSize: '13px', padding: '8px 20px' }} onClick={handleExecuteExport}>START RENDER</button>
               <button className="ut-btn" style={{ borderColor: '#888', color: '#888', fontSize: '13px', padding: '8px 20px' }} onClick={() => setShowExportSettingsOpen(false)}>CANCEL</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {isExporting && (
+        <div style={{ 
+          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', 
+          backgroundColor: 'rgba(0, 0, 0, 0.95)', display: 'flex', justifyContent: 'center', 
+          alignItems: 'center', zIndex: 99999, fontFamily: 'monospace' 
+        }}>
+          <div style={{ border: '3px solid #fff', padding: '50px', textAlign: 'center', backgroundColor: '#000', maxWidth: '600px', width: '90%' }}>
+            <h2 style={{ fontSize: '22px', color: '#ffce32', margin: '0 0 15px 0', letterSpacing: '1px' }}>[ RENDERING MASTER STEMS ]</h2>
+            <p style={{ fontSize: '13px', color: '#ccc', lineHeight: '1.6', margin: 0 }}>
+              COMPUTING HIGH-FIDELITY OFFLINE BUFFER IN {exportMode.toUpperCase()} MODE... PLEASE WAIT...
+            </p>
           </div>
         </div>
       )}
