@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { engine } from '../audio/AudioEngine';
-import { getScaleNotesForEdo } from '../utils/mathUtils';
 
 const MidiController = () => {
-  const { edo, currentScale, activeBlockId, addNoteToActiveBlock, removeNoteFromActiveBlock } = useAppStore();
+  const { edo, activeBlockId, addNoteToActiveBlock, removeNoteFromActiveBlock, addLiveKeypress, removeLiveKeypress, hexOctaveShift } = useAppStore();
   const [midiStatus, setMidiStatus] = useState('NOT INITIALIZED');
+  const activeMidiNotesRef = useRef({}); 
 
   useEffect(() => {
     let midiAccess = null;
@@ -41,27 +41,35 @@ const MidiController = () => {
 
     const handleMidiMessage = async (message) => {
       const [status, midiNote, velocity] = message.data;
+      
+      const baseIndex = midiNote - 60; 
+      const noteIndex = baseIndex + hexOctaveShift * edo;
 
-      const noteIndex = midiNote - 60; 
-
-      const wrappedIndex = ((noteIndex % edo) + edo) % edo;
-      const allowedNotes = getScaleNotesForEdo(currentScale, edo);
-
-      if (!allowedNotes.includes(wrappedIndex)) return;
+      if (noteIndex < -96 || noteIndex > 186) return;
 
       if (status >= 144 && status <= 159 && velocity > 0) {
         await engine.init();
         engine.playNote(noteIndex);
         
+        addLiveKeypress(noteIndex);
+        activeMidiNotesRef.current[midiNote] = noteIndex; 
+
         if (activeBlockId) {
           addNoteToActiveBlock(noteIndex);
         }
       } 
       else if ((status >= 128 && status <= 143) || (status >= 144 && status <= 159 && velocity === 0)) {
-        engine.stopNote(noteIndex);
-        
-        if (activeBlockId) {
-          removeNoteFromActiveBlock(noteIndex);
+        if (activeMidiNotesRef.current[midiNote] !== undefined) {
+          const originalNoteIndex = activeMidiNotesRef.current[midiNote];
+
+          engine.stopNote(originalNoteIndex);
+          removeLiveKeypress(originalNoteIndex);
+          
+          delete activeMidiNotesRef.current[midiNote];
+
+          if (activeBlockId) {
+            removeNoteFromActiveBlock(originalNoteIndex);
+          }
         }
       }
     };
@@ -79,7 +87,7 @@ const MidiController = () => {
         }
       }
     };
-  }, [edo, currentScale, activeBlockId, addNoteToActiveBlock, removeNoteFromActiveBlock]);
+  }, [edo, activeBlockId, addNoteToActiveBlock, removeNoteFromActiveBlock, addLiveKeypress, removeLiveKeypress, hexOctaveShift]);
 
   return (
     <div style={{ fontSize: '12px', color: '#666', border: '1px solid #222', padding: '6px 12px', display: 'inline-block' }}>

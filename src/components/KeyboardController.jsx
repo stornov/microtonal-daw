@@ -1,7 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { engine } from '../audio/AudioEngine';
-import { getScaleNotesForEdo } from '../utils/mathUtils';
 
 const KEY_MAP = {
   'KeyZ': 0, 'KeyX': 1, 'KeyC': 2, 'KeyV': 3, 'KeyB': 4, 'KeyN': 5, 'KeyM': 6, 'Comma': 7, 'Period': 8, 'Slash': 9,
@@ -11,17 +10,12 @@ const KEY_MAP = {
 };
 
 const KeyboardController = () => {
-  const { edo, currentScale, activeBlockId, addNoteToActiveBlock, removeNoteFromActiveBlock, duplicateBlock, setActiveBlockId } = useAppStore();
+  const { edo, activeBlockId, addNoteToActiveBlock, removeNoteFromActiveBlock, duplicateBlock, addLiveKeypress, removeLiveKeypress, hexOctaveShift } = useAppStore();
+  const activeKeysRef = useRef({}); 
 
   useEffect(() => {
     const handleKeyDown = async (e) => {
       if (document.activeElement.tagName === 'INPUT') return;
-
-      if (e.code === 'Escape') {
-        e.preventDefault();
-        setActiveBlockId(null);
-        return;
-      }
 
       if ((e.ctrlKey || e.metaKey) && e.code === 'KeyD') {
         e.preventDefault(); 
@@ -42,19 +36,19 @@ const KeyboardController = () => {
         return;
       }
 
-      if (e.repeat) return; 
-
       const code = e.code;
       if (KEY_MAP[code] !== undefined) {
-        const noteIndex = KEY_MAP[code];
-        if (noteIndex >= edo) return;
+        if (activeKeysRef.current[code] !== undefined) return;
 
-        const allowedNotes = getScaleNotesForEdo(currentScale, edo);
-        if (!allowedNotes.includes(noteIndex)) return;
+        const noteIndex = KEY_MAP[code] + hexOctaveShift * edo;
+        if (noteIndex < -96 || noteIndex > 186) return;
 
         await engine.init();
         engine.playNote(noteIndex);
         
+        addLiveKeypress(noteIndex);
+        activeKeysRef.current[code] = noteIndex;
+
         if (activeBlockId) {
           addNoteToActiveBlock(noteIndex);
         }
@@ -65,14 +59,16 @@ const KeyboardController = () => {
       if (document.activeElement.tagName === 'INPUT') return;
 
       const code = e.code;
-      if (KEY_MAP[code] !== undefined) {
-        const noteIndex = KEY_MAP[code];
-        if (noteIndex >= edo) return;
+      if (activeKeysRef.current[code] !== undefined) {
+        const originalNoteIndex = activeKeysRef.current[code];
 
-        engine.stopNote(noteIndex);
+        engine.stopNote(originalNoteIndex);
+        removeLiveKeypress(originalNoteIndex);
         
+        delete activeKeysRef.current[code]; 
+
         if (activeBlockId) {
-          removeNoteFromActiveBlock(noteIndex);
+          removeNoteFromActiveBlock(originalNoteIndex);
         }
       }
     };
@@ -84,7 +80,7 @@ const KeyboardController = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [edo, currentScale, activeBlockId, addNoteToActiveBlock, removeNoteFromActiveBlock, duplicateBlock, setActiveBlockId]);
+  }, [edo, activeBlockId, addNoteToActiveBlock, removeNoteFromActiveBlock, duplicateBlock, addLiveKeypress, removeLiveKeypress, hexOctaveShift]);
 
   return null;
 };

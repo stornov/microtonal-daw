@@ -1,10 +1,19 @@
 import React, { useMemo } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { engine } from '../audio/AudioEngine';
-import { getNoteName31, getScaleNotesForEdo } from '../utils/mathUtils';
+import { getNoteName31 } from '../utils/mathUtils';
 
 const HexGrid = () => {
-  const { edo, currentScale, blocks, activeBlockId, toggleNoteInActiveBlock, updateBlock, isPlaying, instruments, currentPlayheadBeat, hexOctaveShift, setHexOctaveShift } = useAppStore();
+  const edo = useAppStore(state => state.edo);
+  const blocks = useAppStore(state => state.blocks);
+  const activeBlockId = useAppStore(state => state.activeBlockId);
+  const toggleNoteInActiveBlock = useAppStore(state => state.toggleNoteInActiveBlock);
+  const updateBlock = useAppStore(state => state.updateBlock);
+  const isPlaying = useAppStore(state => state.isPlaying);
+  const instruments = useAppStore(state => state.instruments);
+  const hexOctaveShift = useAppStore(state => state.hexOctaveShift);
+  const setHexOctaveShift = useAppStore(state => state.setHexOctaveShift);
+  const liveActiveNotes = useAppStore(state => state.liveActiveNotes); 
 
   const hexSize = 27; 
   const hexWidth = Math.sqrt(3) * hexSize;
@@ -18,23 +27,6 @@ const HexGrid = () => {
   }, [blocks, activeBlockId]);
 
   const currentNotes = activeBlock ? activeBlock.notes : [];
-
-  const allowedNotes = useMemo(() => {
-    return getScaleNotesForEdo(currentScale, edo);
-  }, [currentScale, edo]);
-
-  const liveActiveNotes = useMemo(() => {
-    if (!isPlaying || currentPlayheadBeat < 0) return {};
-    const active = {};
-    blocks.forEach((block) => {
-      const endBeat = block.startBeat + block.durationBeats;
-      if (currentPlayheadBeat >= block.startBeat && currentPlayheadBeat < endBeat) {
-        const inst = instruments.find(i => i.id === blockActiveInstrumentId(block));
-        active[block.id] = { notes: block.notes, color: inst ? inst.color : '#fff' };
-      }
-    });
-    return active;
-  }, [blocks, isPlaying, currentPlayheadBeat, instruments]);
 
   function blockActiveInstrumentId(b) {
     return b.instrumentId || 'triangle';
@@ -102,28 +94,51 @@ const HexGrid = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', height: '100%', justifyContent: 'space-between', padding: '10px 0', overflow: 'hidden' }}>
       
-      <div style={{ display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '1px solid #222', width: '95%', paddingBottom: '8px', justifyContent: 'center', flexShrink: 0 }}>
-        <button 
-          className="ut-btn" 
-          onClick={() => setHexOctaveShift(Math.max(-4, hexOctaveShift - 1))}
-          disabled={hexOctaveShift <= -4} 
-          style={{ padding: '4px 10px', fontSize: '10px' }}
-        >
-          ◀ OCT DOWN
-        </button>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', borderBottom: '1px solid #222', width: '95%', paddingBottom: '8px', flexShrink: 0 }}>
+        
+        <div></div>
 
-        <span style={{ fontSize: '11px', fontWeight: 'bold', fontFamily: 'monospace', color: '#ffce32', minWidth: '150px', textAlign: 'center' }}>
-          OCT SHIFT: {hexOctaveShift > 0 ? `+${hexOctaveShift}` : hexOctaveShift} ({activeRangeText})
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', justifyContent: 'center' }}>
+          <button 
+            className="ut-btn" 
+            onClick={() => setHexOctaveShift(Math.max(-4, hexOctaveShift - 1))}
+            disabled={hexOctaveShift <= -4} 
+            style={{ padding: '6px 12px', fontSize: '11px' }}
+          >
+            ◀ OCT DOWN
+          </button>
 
-        <button 
-          className="ut-btn" 
-          onClick={() => setHexOctaveShift(Math.min(6, hexOctaveShift + 1))}
-          disabled={hexOctaveShift >= 6} 
-          style={{ padding: '4px 10px', fontSize: '10px' }}
-        >
-          OCT UP ▶
-        </button>
+          <span style={{ fontSize: '12px', fontWeight: 'bold', fontFamily: 'monospace', color: '#ffce32', minWidth: '150px', textAlign: 'center' }}>
+            OCT SHIFT: {hexOctaveShift > 0 ? `+${hexOctaveShift}` : hexOctaveShift} ({activeRangeText})
+          </span>
+
+          <button 
+            className="ut-btn" 
+            onClick={() => setHexOctaveShift(Math.min(6, hexOctaveShift + 1))}
+            disabled={hexOctaveShift >= 6} 
+            style={{ padding: '6px 12px', fontSize: '11px' }}
+          >
+            OCT UP ▶
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', justifyContent: 'flex-end' }}>
+          {activeBlockId && activeBlock && (
+            <>
+              <span style={{ fontSize: '12px', color: '#ffce32', fontWeight: 'bold' }}>
+                ROOT: {activeBlock.baseFreq.toFixed(1)}Hz
+              </span>
+              <button 
+                className="ut-btn" 
+                style={{ fontSize: '11px', padding: '6px 12px', borderColor: '#444' }} 
+                onClick={() => updateBlock(activeBlockId, { baseFreq: 261.63 })}
+              >
+                RESET ROOT
+              </button>
+            </>
+          )}
+        </div>
+        
       </div>
 
       <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', overflow: 'hidden', minHeight: 0 }}>
@@ -136,11 +151,11 @@ const HexGrid = () => {
               .filter(item => item && item.notes.includes(node.noteIndex))
               .map(item => item.color);
 
-            const isLiveActive = liveColors.length > 0;
-            const isEditActive = currentNotes.includes(node.noteIndex);
+            const isKeyPressed = useAppStore.getState().liveKeypresses.includes(node.noteIndex);
+            const activeInstrument = instruments.find(i => i.id === useAppStore.getState().currentInstrumentId);
 
-            const wrappedIndex = ((node.noteIndex % edo) + edo) % edo;
-            const isAllowed = allowedNotes.includes(wrappedIndex);
+            const isLiveActive = liveColors.length > 0 || isKeyPressed;
+            const isEditActive = currentNotes.includes(node.noteIndex);
 
             let fillColor = '#000';
             let strokeColor = '#222';
@@ -160,11 +175,11 @@ const HexGrid = () => {
               <g 
                 key={`${node.r}-${node.q}`} 
                 transform={`translate(${node.x}, ${node.y})`}
-                onClick={() => isAllowed && handleHexClick(node.noteIndex)}
-                onContextMenu={(e) => isAllowed && handleRightClick(e, node.noteIndex)}
+                onClick={() => handleHexClick(node.noteIndex)}
+                onContextMenu={(e) => handleRightClick(e, node.noteIndex)}
                 style={{ 
-                  cursor: isAllowed ? 'pointer' : 'not-allowed',
-                  opacity: isAllowed ? 1 : 0.12 
+                  cursor: 'pointer',
+                  opacity: 1 
                 }}
               >
                 <polygon
@@ -173,7 +188,6 @@ const HexGrid = () => {
                   fill={fillColor}
                   stroke={strokeColor}
                   strokeWidth="1.2"
-                  style={{ pointerEvents: isAllowed ? 'auto' : 'none' }}
                 />
                 <text
                   x="0" y="-5"

@@ -7,30 +7,23 @@ import * as Tone from 'tone';
 const Timeline = () => {
   const { 
     blocks, activeBlockId, isPlaying, tempo, setTempo,
-    instruments, tracks, currentPlayheadBeat,
+    instruments, tracks, 
     setActiveBlockId, addBlock, deleteBlock, updateBlock, clearActiveBlock,
-    addTrack, deleteTrack, setCurrentPlayheadBeat, duplicateBlock
+    addTrack, deleteTrack, duplicateBlock,
+    autoScroll, setAutoScroll 
   } = useAppStore();
 
   const timelineScrollRef = useRef(null);
+  const playheadRef = useRef(null);
   const zoomX = 40; 
   const lastStopClickRef = useRef(0); 
 
   const activeBlock = blocks.find(b => b.id === activeBlockId);
+  const totalTimelineWidth = 120 + 1024 * 4 * zoomX;
 
   const handlePlay = async () => {
     if (isPlaying) return;
     await engine.startSequencer();
-  };
-
-  const handleStop = () => {
-    engine.stopSequencer();
-  };
-
-  const handleStopDoubleClick = () => {
-    engine.stopAllImmediate(); 
-    Tone.Transport.ticks = 0; 
-    setCurrentPlayheadBeat(0);
   };
 
   const handleStopClick = () => {
@@ -38,9 +31,11 @@ const Timeline = () => {
     const delay = 300; 
 
     if (now - lastStopClickRef.current < delay) {
-      handleStopDoubleClick();
+      engine.stopAllImmediate(); 
+      Tone.Transport.ticks = 0; 
+      if (playheadRef.current) playheadRef.current.style.left = '120px';
     } else {
-      handleStop();
+      engine.stopSequencer();
     }
     
     lastStopClickRef.current = now;
@@ -64,42 +59,53 @@ const Timeline = () => {
     const updatePlayhead = () => {
       const ppq = Tone.Transport.PPQ || 192;
       const currentBeats = Tone.Transport.ticks / ppq;
-      setCurrentPlayheadBeat(currentBeats);
+      
+      if (playheadRef.current) {
+        if (Tone.Transport.state === 'started' || Tone.Transport.ticks > 0) {
+          playheadRef.current.style.display = 'block';
+          playheadRef.current.style.left = `${120 + currentBeats * zoomX}px`;
+        } else {
+          playheadRef.current.style.display = 'none';
+        }
+      }
+
+      const isAuto = useAppStore.getState().autoScroll;
+      const isPlay = useAppStore.getState().isPlaying;
+      
+      if (isAuto && isPlay && timelineScrollRef.current && currentBeats >= 0) {
+        const container = timelineScrollRef.current;
+        const playheadX = 120 + currentBeats * zoomX; 
+        const rightBoundary = container.scrollLeft + container.clientWidth - 80;
+        
+        if (playheadX > rightBoundary) {
+          container.scrollLeft = playheadX - 150;
+        }
+        if (currentBeats < 0.1) {
+          container.scrollLeft = 0;
+        }
+      }
+
       animId = requestAnimationFrame(updatePlayhead);
     };
     updatePlayhead();
     return () => cancelAnimationFrame(animId);
-  }, [setCurrentPlayheadBeat]);
-
-  useEffect(() => {
-    if (isPlaying && timelineScrollRef.current && currentPlayheadBeat >= 0) {
-      const container = timelineScrollRef.current;
-      const playheadX = 120 + currentPlayheadBeat * zoomX; 
-      const rightBoundary = container.scrollLeft + container.clientWidth - 80;
-      
-      if (playheadX > rightBoundary) {
-        container.scrollLeft = playheadX - 150;
-      }
-      if (currentPlayheadBeat < 0.1) {
-        container.scrollLeft = 0;
-      }
-    }
-  }, [currentPlayheadBeat, isPlaying, zoomX]);
+  }, [zoomX]);
 
   const handleRulerMouseDown = (e) => {
     e.preventDefault();
-    const rulerContainer = e.currentTarget;
-    const rect = rulerContainer.getBoundingClientRect();
+    const scrollContainer = timelineScrollRef.current;
+    if (!scrollContainer) return;
+
+    const containerRect = scrollContainer.getBoundingClientRect(); 
     const ppq = Tone.Transport.PPQ || 192;
 
     const setPositionFromEvent = (clientX) => {
-      const scrollOffset = timelineScrollRef.current ? timelineScrollRef.current.scrollLeft : 0;
-      const xOnRuler = clientX - rect.left - 120 + scrollOffset;
+      const scrollOffset = scrollContainer.scrollLeft;
+      const xOnRuler = clientX - containerRect.left - 120 + scrollOffset;
       const beats = Math.max(0, xOnRuler / zoomX);
       const snappedBeats = Math.round(beats / 0.125) * 0.125; 
       
       Tone.Transport.ticks = snappedBeats * ppq;
-      setCurrentPlayheadBeat(snappedBeats);
     };
 
     setPositionFromEvent(e.clientX);
@@ -202,7 +208,7 @@ const Timeline = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', height: '30px' }}>
         
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          
+
           <button className={`ut-btn ${isPlaying ? 'active' : ''}`} onClick={handlePlay} style={{ borderColor: '#59DC90', color: '#59DC90' }}>
             ▶ PLAY
           </button>
@@ -211,63 +217,88 @@ const Timeline = () => {
             ■ STOP
           </button>
 
-          <button className="ut-btn" onClick={addTrack} style={{ borderColor: '#fff', color: '#fff' }}>
+          <button className="ut-btn" onClick={addTrack} style={{ borderColor: '#fff', color: '#fff', marginLeft: '10px' }}>
             + STREAM
           </button>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', borderLeft: '1px solid #333', paddingLeft: '10px' }}>
-            <span style={{ fontSize: '9px', color: '#888' }}>BPM:</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderLeft: '1px solid #333', paddingLeft: '15px' }}>
+            <span style={{ fontSize: '11px', color: '#888', fontWeight: 'bold' }}>BPM:</span>
             <input 
               type="range" min="60" max="220" 
-              style={{ width: '60px', accentColor: '#fff', height: '10px' }}
+              style={{ width: '80px', accentColor: '#fff', cursor: 'pointer' }}
               value={tempo} onChange={(e) => setTempo(e.target.value)} 
             />
             <input 
-              type="number" min="60" max="220"
-              style={{ width: '35px', background: '#000', color: '#fff', border: '1px solid #444', fontSize: '8px', textAlign: 'center', padding: 0 }}
+              type="number" style={{ width: '45px', background: '#000', color: '#fff', border: '1px solid #444', fontSize: '11px', textAlign: 'center', padding: '2px' }}
               value={tempo}
               onChange={(e) => setTempo(Math.min(220, Math.max(60, parseInt(e.target.value) || 120)))}
             />
           </div>
 
+          <button 
+            className="ut-btn"
+            onClick={() => setAutoScroll(!autoScroll)}
+            style={{ 
+              fontSize: '11px', 
+              padding: '6px 12px', 
+              borderLeft: '1px solid #333',
+              border: '2px solid #7FFDEB', 
+              backgroundColor: autoScroll ? '#7FFDEB' : '#000',
+              color: autoScroll ? '#000' : '#7FFDEB',
+              marginLeft: '15px'
+            }}
+          >
+            SCROLL: {autoScroll ? 'ON' : 'OFF'}
+          </button>
+
         </div>
 
         {activeBlock && (
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', borderLeft: '1px solid #333', paddingLeft: '10px' }}>
-            <span style={{ fontSize: '10px', color: '#ffce32' }}>
-              LEN: {formatBeatsToFraction(activeBlock.durationBeats)} | ROOT: {activeBlock.baseFreq.toFixed(1)}Hz
+          <div style={{ display: 'flex', gap: '15px', alignItems: 'center', borderLeft: '1px solid #333', paddingLeft: '15px' }}>
+            <span style={{ fontSize: '12px', color: '#ffce32', fontWeight: 'bold' }}>
+              LEN: {formatBeatsToFraction(activeBlock.durationBeats)}
             </span>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <span style={{ fontSize: '9px', color: '#888' }}>VEL:</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '11px', color: '#888', fontWeight: 'bold' }}>VEL:</span>
               <input 
                 type="range" 
                 min="0" max="127" 
-                style={{ width: '60px', accentColor: '#fff', height: '10px' }}
+                style={{ width: '60px', accentColor: '#fff', cursor: 'pointer' }}
                 value={activeBlock.velocity ?? 100} 
                 onChange={(e) => updateBlock(activeBlock.id, { velocity: parseInt(e.target.value) })}
               />
               <input 
-                type="number" min="0" max="127"
-                style={{ width: '32px', background: '#000', color: '#fff', border: '1px solid #444', fontSize: '8px', textAlign: 'center', padding: 0 }}
+                type="number" style={{ width: '40px', background: '#000', color: '#fff', border: '1px solid #444', fontSize: '11px', textAlign: 'center', padding: '2px' }}
                 value={activeBlock.velocity ?? 100}
                 onChange={(e) => updateBlock(activeBlock.id, { velocity: Math.min(127, Math.max(0, parseInt(e.target.value) || 0)) })}
               />
             </div>
 
-            <button 
-              className="ut-btn" 
-              style={{ fontSize: '9px', padding: '2px 6px', borderColor: '#59DC90', color: '#59DC90' }}
-              onClick={() => duplicateBlock(activeBlock.id)}
-            >
-              DUPLICATE
-            </button>
-
-            <button className="ut-btn" style={{ fontSize: '9px', padding: '2px 6px' }} onClick={() => updateBlock(activeBlock.id, { baseFreq: 261.63 })} style={{ borderColor: '#444' }}>
-              RESET ROOT
-            </button>
-            <button className="ut-btn" style={{ fontSize: '9px', padding: '2px 6px' }} onClick={handleClearCadre}>CLEAR CADRE</button>
-            <button className="ut-btn" style={{ fontSize: '9px', padding: '2px 6px', borderColor: '#ff4444', color: '#ff4444' }} onClick={() => deleteBlock(activeBlock.id)}>DELETE</button>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', border: '1px dashed #555', padding: '4px 8px', backgroundColor: '#111' }}>
+              <span style={{ fontSize: '10px', color: '#888', marginRight: '4px' }}>CADRE ACTIONS:</span>
+              <button 
+                className="ut-btn" 
+                style={{ fontSize: '10px', padding: '4px 8px', borderColor: '#59DC90', color: '#59DC90' }}
+                onClick={() => duplicateBlock(activeBlock.id)}
+              >
+                DUPLICATE
+              </button>
+              <button 
+                className="ut-btn" 
+                style={{ fontSize: '10px', padding: '4px 8px', borderColor: '#ffaa00', color: '#ffaa00' }} 
+                onClick={handleClearCadre}
+              >
+                CLEAR NOTES
+              </button>
+              <button 
+                className="ut-btn" 
+                style={{ fontSize: '10px', padding: '4px 8px', borderColor: '#ff4444', color: '#ff4444' }} 
+                onClick={() => deleteBlock(activeBlock.id)}
+              >
+                DELETE
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -279,11 +310,11 @@ const Timeline = () => {
         
         <div 
           onMouseDown={handleRulerMouseDown} 
-          style={{ display: 'flex', height: '20px', backgroundColor: '#111', borderBottom: '1px solid #333', position: 'sticky', top: 0, zIndex: 10, cursor: 'col-resize' }}
+          style={{ display: 'flex', height: '20px', backgroundColor: '#111', borderBottom: '1px solid #333', position: 'sticky', top: 0, zIndex: 10, cursor: 'col-resize', width: `${totalTimelineWidth}px` }}
         >
-          <div style={{ width: '120px', backgroundColor: '#000', borderRight: '1px solid #333', cursor: 'default' }} onMouseDown={e => e.stopPropagation()} />
+          <div style={{ width: '120px', backgroundColor: '#000', borderRight: '1px solid #333' }} onMouseDown={e => e.stopPropagation()} />
           <div style={{ position: 'relative', flex: 1, height: '100%', overflow: 'hidden' }}>
-            {Array.from({ length: 64 }).map((_, i) => (
+            {Array.from({ length: 1024 }).map((_, i) => (
               <div key={i} style={{
                 position: 'absolute',
                 left: `${i * 4 * zoomX}px`, 
@@ -302,15 +333,13 @@ const Timeline = () => {
           </div>
         </div>
 
-        <div style={{ position: 'relative' }}>
+        <div style={{ position: 'relative', width: `${totalTimelineWidth}px` }}>
           
-          {currentPlayheadBeat >= 0 && (
-            <div style={{
-              position: 'absolute', top: 0, bottom: 0,
-              left: `${120 + currentPlayheadBeat * zoomX}px`,
-              width: '2px', backgroundColor: '#ff4444', zIndex: 100, pointerEvents: 'none'
-            }} />
-          )}
+          <div ref={playheadRef} style={{
+            position: 'absolute', top: 0, bottom: 0,
+            width: '2px', backgroundColor: '#ff4444', zIndex: 100, pointerEvents: 'none',
+            display: 'none'
+          }} />
 
           {tracks.map((track, trackIndex) => (
             <div 

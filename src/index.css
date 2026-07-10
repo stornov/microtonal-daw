@@ -83,6 +83,17 @@ body {
   cursor: pointer;
 }
 
+.daw-bottom-rack {
+  display: flex;
+  gap: 15px;
+  height: 240px;          
+  min-height: 210px;      
+  max-height: 270px;      
+  width: 100%;
+  overflow: hidden;
+  flex: 0.9;
+}
+
 .fade-text {
   transition: opacity 1s ease-out;
 }
@@ -100,7 +111,7 @@ body {
   height: 100vh;
   background-color: #000;
   padding: 10px;
-  overflow: hidden;
+  overflow: hidden; 
 }
 
 .daw-workspace-upper {
@@ -140,24 +151,16 @@ body {
   min-height: 0;
 }
 
-.daw-bottom-rack {
-  display: flex;
-  gap: 15px;
-  height: 240px; 
-  min-height: 210px;
-  max-height: 270px;
-  width: 100%;
-  overflow: hidden;
-  flex: 0.9;
-  flex-shrink: 0;
-}
-
 .daw-synth-box {
   width: 280px; 
   flex-shrink: 0; 
   height: 100%;
 }
 
+.daw-canvas-faded {
+  mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+  -webkit-mask-image: linear-gradient(to right, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 8%, rgba(0,0,0,1) 92%, rgba(0,0,0,0) 100%);
+}
 
 @media (max-width: 1439px) {
   body {
@@ -185,7 +188,7 @@ body {
     flex: none;
     width: 100%;
     height: auto;
-    min-height: 380px;
+    min-height: 380px; 
     max-height: 480px;
     overflow: visible;
     padding: 20px;
@@ -202,7 +205,7 @@ body {
   }
 
   .daw-synth-box {
-    width: 100%;
+    width: 100%; 
     height: auto;
     min-height: 250px;
   }
