@@ -10,7 +10,11 @@ const KEY_MAP = {
 };
 
 const KeyboardController = () => {
-  const { edo, activeBlockId, addNoteToActiveBlock, removeNoteFromActiveBlock, duplicateBlock, addLiveKeypress, removeLiveKeypress, hexOctaveShift } = useAppStore();
+  const { 
+    edo, activeBlockId, addNoteToBlock, removeNoteFromBlock, 
+    duplicateBlock, addLiveKeypress, removeLiveKeypress, hexOctaveShift 
+  } = useAppStore();
+  
   const activeKeysRef = useRef({}); 
 
   useEffect(() => {
@@ -47,10 +51,10 @@ const KeyboardController = () => {
         engine.playNote(noteIndex);
         
         addLiveKeypress(noteIndex);
-        activeKeysRef.current[code] = noteIndex;
+        activeKeysRef.current[code] = { noteIndex, blockId: activeBlockId };
 
         if (activeBlockId) {
-          addNoteToActiveBlock(noteIndex);
+          addNoteToBlock(activeBlockId, noteIndex);
         }
       }
     };
@@ -60,27 +64,35 @@ const KeyboardController = () => {
 
       const code = e.code;
       if (activeKeysRef.current[code] !== undefined) {
-        const originalNoteIndex = activeKeysRef.current[code];
+        const { noteIndex, blockId } = activeKeysRef.current[code];
 
-        engine.stopNote(originalNoteIndex);
-        removeLiveKeypress(originalNoteIndex);
+        engine.stopNote(noteIndex);
+        removeLiveKeypress(noteIndex);
         
         delete activeKeysRef.current[code]; 
 
-        if (activeBlockId) {
-          removeNoteFromActiveBlock(originalNoteIndex);
+        if (blockId) {
+          removeNoteFromBlock(blockId, noteIndex);
         }
       }
     };
 
+    const handleWindowBlur = () => {
+      engine.stopAll();
+      useAppStore.getState().setLiveKeypresses([]);
+      activeKeysRef.current = {};
+    };
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleWindowBlur);
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleWindowBlur);
     };
-  }, [edo, activeBlockId, addNoteToActiveBlock, removeNoteFromActiveBlock, duplicateBlock, addLiveKeypress, removeLiveKeypress, hexOctaveShift]);
+  }, [edo, activeBlockId, addNoteToBlock, removeNoteFromBlock, duplicateBlock, addLiveKeypress, removeLiveKeypress, hexOctaveShift]);
 
   return null;
 };

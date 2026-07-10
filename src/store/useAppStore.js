@@ -228,6 +228,25 @@ export const useAppStore = create(
         };
       }),
 
+      addNoteToBlock: (blockId, noteIndex) => set((state) => {
+        const block = state.blocks.find(b => b.id === blockId);
+        if (!block) return state;
+        if (block.notes.includes(noteIndex)) return state;
+        const newNotes = [...block.notes, noteIndex].sort((a,b) => a - b);
+        return {
+          blocks: state.blocks.map(b => b.id === blockId ? { ...b, notes: newNotes } : b)
+        };
+      }),
+
+      removeNoteFromBlock: (blockId, noteIndex) => set((state) => {
+        const block = state.blocks.find(b => b.id === blockId);
+        if (!block) return state;
+        const newNotes = block.notes.filter(n => n !== noteIndex);
+        return {
+          blocks: state.blocks.map(b => b.id === blockId ? { ...b, notes: newNotes } : b)
+        };
+      }),
+
       toggleNoteInActiveBlock: (noteIndex) => set((state) => {
         const activeBlock = state.blocks.find(b => b.id === state.activeBlockId);
         if (!activeBlock) return state;
@@ -276,3 +295,4 @@ export const useAppStore = create(
     }
   )
 );
+

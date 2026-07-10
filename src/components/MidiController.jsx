@@ -3,7 +3,7 @@ import { useAppStore } from '../store/useAppStore';
 import { engine } from '../audio/AudioEngine';
 
 const MidiController = () => {
-  const { edo, activeBlockId, addNoteToActiveBlock, removeNoteFromActiveBlock, addLiveKeypress, removeLiveKeypress, hexOctaveShift } = useAppStore();
+  const { edo, activeBlockId, addNoteToBlock, removeNoteFromBlock, addLiveKeypress, removeLiveKeypress, hexOctaveShift } = useAppStore();
   const [midiStatus, setMidiStatus] = useState('NOT INITIALIZED');
   const activeMidiNotesRef = useRef({}); 
 
@@ -52,23 +52,23 @@ const MidiController = () => {
         engine.playNote(noteIndex);
         
         addLiveKeypress(noteIndex);
-        activeMidiNotesRef.current[midiNote] = noteIndex; 
+        activeMidiNotesRef.current[midiNote] = { noteIndex, blockId: activeBlockId }; 
 
         if (activeBlockId) {
-          addNoteToActiveBlock(noteIndex);
+          addNoteToBlock(activeBlockId, noteIndex);
         }
       } 
       else if ((status >= 128 && status <= 143) || (status >= 144 && status <= 159 && velocity === 0)) {
         if (activeMidiNotesRef.current[midiNote] !== undefined) {
-          const originalNoteIndex = activeMidiNotesRef.current[midiNote];
+          const { noteIndex, blockId } = activeMidiNotesRef.current[midiNote];
 
-          engine.stopNote(originalNoteIndex);
-          removeLiveKeypress(originalNoteIndex);
+          engine.stopNote(noteIndex);
+          removeLiveKeypress(noteIndex);
           
           delete activeMidiNotesRef.current[midiNote];
 
-          if (activeBlockId) {
-            removeNoteFromActiveBlock(originalNoteIndex);
+          if (blockId) {
+            removeNoteFromBlock(blockId, noteIndex);
           }
         }
       }
@@ -87,7 +87,7 @@ const MidiController = () => {
         }
       }
     };
-  }, [edo, activeBlockId, addNoteToActiveBlock, removeNoteFromActiveBlock, addLiveKeypress, removeLiveKeypress, hexOctaveShift]);
+  }, [edo, activeBlockId, addNoteToBlock, removeNoteFromBlock, addLiveKeypress, removeLiveKeypress, hexOctaveShift]);
 
   return (
     <div style={{ fontSize: '12px', color: '#666', border: '1px solid #222', padding: '6px 12px', display: 'inline-block' }}>

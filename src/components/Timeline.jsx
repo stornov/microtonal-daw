@@ -106,6 +106,7 @@ const Timeline = () => {
       const snappedBeats = Math.round(beats / 0.125) * 0.125; 
       
       Tone.Transport.ticks = snappedBeats * ppq;
+      useAppStore.getState().clearLiveActiveNotes();
     };
 
     setPositionFromEvent(e.clientX);
