@@ -3,7 +3,7 @@ import { useAppStore } from '../store/useAppStore';
 import { engine } from '../audio/AudioEngine';
 
 const MidiController = () => {
-  const { edo, activeBlockId, addNoteToBlock, removeNoteFromBlock, addLiveKeypress, removeLiveKeypress, hexOctaveShift } = useAppStore();
+  const { edo, activeBlockId, addLiveKeypress, removeLiveKeypress, hexOctaveShift } = useAppStore();
   const [midiStatus, setMidiStatus] = useState('NOT INITIALIZED');
   const activeMidiNotesRef = useRef({}); 
 
@@ -52,24 +52,16 @@ const MidiController = () => {
         engine.playNote(noteIndex);
         
         addLiveKeypress(noteIndex);
-        activeMidiNotesRef.current[midiNote] = { noteIndex, blockId: activeBlockId }; 
-
-        if (activeBlockId) {
-          addNoteToBlock(activeBlockId, noteIndex);
-        }
+        activeMidiNotesRef.current[midiNote] = noteIndex; 
       } 
       else if ((status >= 128 && status <= 143) || (status >= 144 && status <= 159 && velocity === 0)) {
         if (activeMidiNotesRef.current[midiNote] !== undefined) {
-          const { noteIndex, blockId } = activeMidiNotesRef.current[midiNote];
+          const originalNoteIndex = activeMidiNotesRef.current[midiNote];
 
-          engine.stopNote(noteIndex);
-          removeLiveKeypress(noteIndex);
+          engine.stopNote(originalNoteIndex);
+          removeLiveKeypress(originalNoteIndex);
           
           delete activeMidiNotesRef.current[midiNote];
-
-          if (blockId) {
-            removeNoteFromBlock(blockId, noteIndex);
-          }
         }
       }
     };
@@ -87,7 +79,7 @@ const MidiController = () => {
         }
       }
     };
-  }, [edo, activeBlockId, addNoteToBlock, removeNoteFromBlock, addLiveKeypress, removeLiveKeypress, hexOctaveShift]);
+  }, [edo, activeBlockId, addLiveKeypress, removeLiveKeypress, hexOctaveShift]);
 
   return (
     <div style={{ fontSize: '12px', color: '#666', border: '1px solid #222', padding: '6px 12px', display: 'inline-block' }}>

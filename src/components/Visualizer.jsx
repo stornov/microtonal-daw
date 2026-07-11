@@ -38,6 +38,8 @@ const Visualizer = () => {
 
     const draw = () => {
       animationFrameId = requestAnimationFrame(draw);
+      
+      if (document.hidden) return;
 
       const state = useAppStore.getState();
       const currentDecay = state.visDecay;

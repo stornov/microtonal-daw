@@ -42,21 +42,23 @@ const SynthControls = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: '11px', color: '#888', fontWeight: 'bold' }}>WAVE TYPE:</span>
           
-          <select 
-            className="ut-select" 
-            style={{ borderColor: inst.color, padding: '4px 6px', fontSize: '12px' }}
-            value={activeBlock.instrumentId} 
-            onChange={(e) => {
-              const newInstId = e.target.value;
-              updateBlock(activeBlock.id, { instrumentId: newInstId });
-              useAppStore.setState({ currentInstrumentId: newInstId }); 
-            }}
-          >
-            <option value="triangle">TRIANGLE (Mellow)</option>
-            <option value="saw">SAW (Aggressive)</option>
-            <option value="square">SQUARE (Retro)</option>
-            <option value="sine">SINE (Sub Bass)</option>
-          </select>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <select 
+              className="ut-select" 
+              style={{ borderColor: inst.color, padding: '4px 6px', fontSize: '12px' }}
+              value={activeBlock.instrumentId} 
+              onChange={(e) => {
+                const newInstId = e.target.value;
+                updateBlock(activeBlock.id, { instrumentId: newInstId });
+                useAppStore.setState({ currentInstrumentId: newInstId }); 
+              }}
+            >
+              <option value="triangle">TRIANGLE (Mellow)</option>
+              <option value="saw">SAW (Aggressive)</option>
+              <option value="square">SQUARE (Retro)</option>
+              <option value="sine">SINE (Sub Bass)</option>
+            </select>
+          </div>
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'flex-start', margin: '4px 0' }}>

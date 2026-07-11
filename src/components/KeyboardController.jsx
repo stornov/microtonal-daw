@@ -12,7 +12,8 @@ const KEY_MAP = {
 const KeyboardController = () => {
   const { 
     edo, activeBlockId, addNoteToBlock, removeNoteFromBlock, 
-    duplicateBlock, addLiveKeypress, removeLiveKeypress, hexOctaveShift 
+    duplicateBlock, addLiveKeypress, removeLiveKeypress, hexOctaveShift,
+    setActiveBlockId, undo, redo 
   } = useAppStore();
   
   const activeKeysRef = useRef({}); 
@@ -21,11 +22,28 @@ const KeyboardController = () => {
     const handleKeyDown = async (e) => {
       if (document.activeElement.tagName === 'INPUT') return;
 
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
+        e.preventDefault();
+        if (e.shiftKey) redo(); 
+        else undo(); 
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY') {
+        e.preventDefault();
+        redo(); 
+        return;
+      }
+
+      if (e.code === 'Escape') {
+        e.preventDefault();
+        setActiveBlockId(null);
+        return;
+      }
+
       if ((e.ctrlKey || e.metaKey) && e.code === 'KeyD') {
         e.preventDefault(); 
-        if (activeBlockId) {
-          duplicateBlock(activeBlockId);
-        }
+        if (activeBlockId) duplicateBlock(activeBlockId);
         return;
       }
 
@@ -52,10 +70,6 @@ const KeyboardController = () => {
         
         addLiveKeypress(noteIndex);
         activeKeysRef.current[code] = { noteIndex, blockId: activeBlockId };
-
-        if (activeBlockId) {
-          addNoteToBlock(activeBlockId, noteIndex);
-        }
       }
     };
 
@@ -64,21 +78,19 @@ const KeyboardController = () => {
 
       const code = e.code;
       if (activeKeysRef.current[code] !== undefined) {
-        const { noteIndex, blockId } = activeKeysRef.current[code];
+        const { noteIndex } = activeKeysRef.current[code];
 
         engine.stopNote(noteIndex);
         removeLiveKeypress(noteIndex);
         
         delete activeKeysRef.current[code]; 
-
-        if (blockId) {
-          removeNoteFromBlock(blockId, noteIndex);
-        }
       }
     };
 
     const handleWindowBlur = () => {
-      engine.stopAll();
+      Object.values(activeKeysRef.current).forEach(({ noteIndex }) => {
+        engine.stopNote(noteIndex);
+      });
       useAppStore.getState().setLiveKeypresses([]);
       activeKeysRef.current = {};
     };
@@ -92,7 +104,7 @@ const KeyboardController = () => {
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleWindowBlur);
     };
-  }, [edo, activeBlockId, addNoteToBlock, removeNoteFromBlock, duplicateBlock, addLiveKeypress, removeLiveKeypress, hexOctaveShift]);
+  }, [edo, activeBlockId, duplicateBlock, addLiveKeypress, removeLiveKeypress, hexOctaveShift, setActiveBlockId, undo, redo]);
 
   return null;
 };
