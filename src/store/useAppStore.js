@@ -36,11 +36,7 @@ export const useAppStore = create(
       snapGrid: 0.25,
       timelineZoom: 40,
       isEditing: false, 
-      
       isRecording: false,
-
-      historyPast: [],
-      historyFuture: [],
 
       setVisGain: (val) => set({ visGain: Number(val) }),
       setVisLineWidth: (val) => set({ visLineWidth: Number(val) }),
@@ -50,6 +46,8 @@ export const useAppStore = create(
       setTimelineZoom: (val) => set({ timelineZoom: Number(val) }),
       setIsEditing: (val) => set({ isEditing: val }),
       setIsRecording: (val) => set({ isRecording: val }),
+      
+      setIsExporting: (val) => set({ isExporting: val }),
       
       tracks: DEFAULT_TRACKS,
       instruments: DEFAULT_INSTRUMENTS,
@@ -65,7 +63,7 @@ export const useAppStore = create(
       setShowCircleLabels: (val) => set({ showCircleLabels: val }),
 
       setTempo: (t) => {
-        get().pushToHistory();
+        get().pushToHistory(); 
         set({ tempo: Number(t), activeDemoKey: 'custom' });
       },
 
@@ -92,10 +90,10 @@ export const useAppStore = create(
           blocks: JSON.parse(JSON.stringify(state.blocks)),
           tracks: JSON.parse(JSON.stringify(state.tracks))
         };
-        const newPast = [...state.historyPast, currentSnapshot].slice(-30);
+        const newPast = [...state.historyPast, currentSnapshot].slice(-30); 
         return {
           historyPast: newPast,
-          historyFuture: []
+          historyFuture: [] 
         };
       }),
 
@@ -165,7 +163,7 @@ export const useAppStore = create(
             liveKeypresses: [],
             activeDemoKey: key,
             timelineZoom: 40,
-            historyPast: [],
+            historyPast: [], 
             historyFuture: []
           });
         }
@@ -235,7 +233,7 @@ export const useAppStore = create(
       }),
 
       addTrack: () => set((state) => {
-        get().pushToHistory();
+        get().pushToHistory(); 
         const id = `track_${Date.now()}`;
         return { 
           activeDemoKey: 'custom', 
@@ -251,7 +249,7 @@ export const useAppStore = create(
 
       deleteTrack: (trackId) => set((state) => {
         if (state.tracks.length <= 1) return state;
-        get().pushToHistory();
+        get().pushToHistory(); 
         const newTracks = state.tracks.filter(t => t.id !== trackId);
         const newBlocks = state.blocks.filter(b => b.trackId !== trackId);
         const activeBlockStillExists = newBlocks.some(b => b.id === state.activeBlockId);
@@ -260,7 +258,7 @@ export const useAppStore = create(
       }),
 
       updateTrack: (trackId, params) => set((state) => {
-        get().pushToHistory();
+        get().pushToHistory(); 
         return {
           activeDemoKey: 'custom',
           tracks: state.tracks.map(t => t.id === trackId ? { ...t, ...params } : t)
@@ -278,7 +276,7 @@ export const useAppStore = create(
       })),
 
       addBlock: (trackId, startBeat = 0) => set((state) => {
-        get().pushToHistory();
+        get().pushToHistory(); 
         const newId = `block_${Date.now()}`;
         const newBlock = {
           id: newId,
@@ -299,7 +297,7 @@ export const useAppStore = create(
       }),
 
       duplicateBlock: (id) => set((state) => {
-        get().pushToHistory();
+        get().pushToHistory(); 
         const original = state.blocks.find(b => b.id === id);
         if (!original) return state;
 
@@ -324,7 +322,7 @@ export const useAppStore = create(
       }),
 
       deleteBlock: (id) => set((state) => {
-        get().pushToHistory();
+        get().pushToHistory(); 
         const newBlocks = state.blocks.filter(b => b.id !== id);
         const nextActiveId = newBlocks.length > 0 ? newBlocks[0].id : null;
         return { blocks: newBlocks, activeBlockId: nextActiveId, activeDemoKey: 'custom' };
@@ -336,7 +334,7 @@ export const useAppStore = create(
       })),
 
       updateInstrument: (id, params) => set((state) => {
-        get().pushToHistory();
+        get().pushToHistory(); 
         return {
           activeDemoKey: 'custom',
           instruments: state.instruments.map(inst => inst.id === id ? { ...inst, ...params } : inst)
@@ -347,7 +345,7 @@ export const useAppStore = create(
         const activeBlock = state.blocks.find(b => b.id === state.activeBlockId);
         if (!activeBlock) return state;
         if (activeBlock.notes.includes(noteIndex)) return state;
-        get().pushToHistory();
+        get().pushToHistory(); 
         const newNotes = [...activeBlock.notes, noteIndex].sort((a,b) => a - b);
         return {
           activeDemoKey: 'custom',
@@ -358,7 +356,7 @@ export const useAppStore = create(
       removeNoteFromActiveBlock: (noteIndex) => set((state) => {
         const activeBlock = state.blocks.find(b => b.id === state.activeBlockId);
         if (!activeBlock) return state;
-        get().pushToHistory();
+        get().pushToHistory(); 
         const newNotes = activeBlock.notes.filter(n => n !== noteIndex);
         return {
           activeDemoKey: 'custom',
@@ -369,7 +367,7 @@ export const useAppStore = create(
       toggleNoteInActiveBlock: (noteIndex) => set((state) => {
         const activeBlock = state.blocks.find(b => b.id === state.activeBlockId);
         if (!activeBlock) return state;
-        get().pushToHistory();
+        get().pushToHistory(); 
         const currentNotes = activeBlock.notes;
         let newNotes;
         if (currentNotes.includes(noteIndex)) {
@@ -387,7 +385,7 @@ export const useAppStore = create(
         const block = state.blocks.find(b => b.id === blockId);
         if (!block) return state;
         if (block.notes.includes(noteIndex)) return state;
-        get().pushToHistory();
+        get().pushToHistory(); 
         const newNotes = [...block.notes, noteIndex].sort((a,b) => a - b);
         return {
           activeDemoKey: 'custom',
@@ -398,7 +396,7 @@ export const useAppStore = create(
       removeNoteFromBlock: (blockId, noteIndex) => set((state) => {
         const block = state.blocks.find(b => b.id === blockId);
         if (!block) return state;
-        get().pushToHistory();
+        get().pushToHistory(); 
         const newNotes = block.notes.filter(n => n !== noteIndex);
         return {
           activeDemoKey: 'custom',
@@ -407,7 +405,7 @@ export const useAppStore = create(
       }),
 
       clearActiveBlock: () => set((state) => {
-        get().pushToHistory();
+        get().pushToHistory(); 
         return {
           activeDemoKey: 'custom',
           blocks: state.blocks.map(b => b.id === state.activeBlockId ? { ...b, notes: [] } : b)
@@ -415,7 +413,7 @@ export const useAppStore = create(
       }),
 
       setEdo: (newEdo) => {
-        get().pushToHistory();
+        get().pushToHistory(); 
         set({ edo: newEdo, activeDemoKey: 'custom' });
       },
       setVolume: (vol) => set({ volume: Number(vol) }),
